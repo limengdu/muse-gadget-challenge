@@ -24,6 +24,26 @@ except ImportError:
 
 
 class GadgetEvents(unittest.TestCase):
+    def test_silent_turn_and_fifo_delivery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            write_rtos(out)
+            (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 0\n")
+            binary = compile_host(out, [ROOT / "tests/gadget_events_silent_harness.c"], json=True,
+                flags=[f'-DREPLY_FIXTURE_PATH="{ROOT / "tests/gadget_reply_fixture.json"}"',
+                       f'-DSILENT_FIXTURE_PATH="{ROOT / "tests/gadget_silent_fixture.json"}"'])
+            result = run_host(binary)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            progress = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith("@event ")]
+            self.assertEqual([line["status"] for line in progress], ["queued", "sent", "delivered"])
+            self.assertEqual(progress[-1], {"status": "delivered", "seq": 1})
+            states = [json.loads(line[len("@event.state "):]) for line in result.stdout.splitlines() if line.startswith("@event.state ")]
+            self.assertEqual(len(states), 1)
+            self.assertEqual(states[0]["reason"], "silent")
+            self.assertEqual(states[0]["quiet_ms"], 4000)
+            self.assertEqual(states[0]["count"], 0)
+            self.assertFalse(states[0]["complete"] or states[0]["agent_busy"])
+
     def test_queue_stream_retry_and_poll(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)

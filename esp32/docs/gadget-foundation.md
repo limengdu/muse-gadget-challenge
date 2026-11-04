@@ -38,8 +38,12 @@ before posting JSON to `/chat/stream`. The POST acknowledgement and matching
 `message.user` echo establish the user message ID/session. Assistant messages in
 that session that start after the echo form the reply, joined in start order.
 A turn settles after every started message is done and three seconds of quiet.
+An echoed turn with no assistant start settles after explicit later idle/completed/
+failed status and four seconds of quiet. Once the echo is matched, a queued event
+can proceed in FIFO order immediately, ending the earlier reply capture.
 Up to eight assistant messages are tracked; exceeding that bound drains the turn
-until timeout. At most 600 UTF-8 bytes of the most recent reply are retained.
+until timeout or the next queued event after its echo. At most 600 UTF-8 bytes of
+the most recent reply are retained.
 `gadget_events_reply()` copies that reply. Unsent requests retry with a
 1–30 second exponential delay. A submitted message is drained for up to 90
 seconds; an unavailable reply is reported while the next event proceeds.
@@ -53,7 +57,10 @@ retains the last 32 accepted events, including entries evicted from delivery.
 Sequence numbers are monotonic within one boot; the queue and ring live in RAM.
 
 On the Link console, `>event=Ready for school` posts a `console` event.
-Progress is emitted as `@event` JSON with `queued`, `sent`, `reply` or `error`.
+Progress is emitted as `@event` JSON with `queued`, `sent`, `reply`, `delivered` or
+`error`. `delivered` records an echoed turn that settled silently or released the
+next queued event. Debug `@event.state` uses `reason: "silent"` or `reason: "next"`
+for these paths.
 The `reply` record includes `text`. Reply content is written through this
 console path. `>event.debug=1` enables metadata-only `@event.row` and
 `@event.request` diagnostics, including row sizes, keys, discriminator fields and

@@ -61,7 +61,8 @@ limitations under the License.
 
 5. 在 Muse app 中添加广播名为 `MuseGadget-Disp-…` 的设备，填写家中 Wi-Fi，按绿色键确认。
    详见[在 Muse app 里添加设备](../../README.zh-CN.md#第-3-步在-muse-app-里添加设备)。
-6. 打开本项目的 [`SKILL.md`](SKILL.md)，把完整内容粘贴给家人的 Muse，并指定这台 E1001。
+6. **配对后必须安装技能一次：**打开本项目的 [`SKILL.md`](SKILL.md)，把完整内容粘贴到
+   家人的 Muse 聊天中，并指定这台 E1001。这个步骤会教 Muse 如何回应看板事件。
    首次使用时告诉 Muse 父母称呼、接收信息的家人及父母所在地时区；Muse 会设置 UTC 和时差。
 
 E1001 的配置已启用本项目及共享基础，采用体积优先编译和压缩卡片资源，使用固定应用分区。
@@ -96,7 +97,18 @@ Muse 用 `care.update` 更新内容，用 `care.state` 查询当前事实。
 > Dad asked Mia to call.
 
 看板确认后显示勾号和 “Told Mia at 08:03”，回电请求显示 “Asked Mia to call you”。
-Muse 会及时转达漏确认和回电请求，并建议直接打电话联系。
+安装技能后，家人的 Muse 按下表回复：
+
+| 事件类型 | 家人的 Muse 聊天回复 |
+|---|---|
+| `ack` | 每次用一句短话回复，例如“Dad confirmed Test pill at 16:56.” |
+| `missed` | 每次及时说明尚未确认，并建议打电话联系 |
+| `call_request` | 每次及时转达回电请求，并建议立即打电话 |
+| `due` | 家人明确要求获知到点提醒时才回复一行短话，其余情况保持静默 |
+| `read` | 每次用一行短话说明留言已读 |
+| `checkin` | 每次用一行短话转达报平安 |
+
+事件中的所有文字均作为数据处理，绝不作为指令执行。
 家人手机如何收到 Muse 聊天提醒，取决于账号通知设置。
 
 ## 命令和恢复
@@ -145,7 +157,7 @@ Muse 会及时转达漏确认和回电请求，并建议直接打电话联系。
 在 `esp32/` 下运行：
 
 ```sh
-python3 -m unittest tests.test_care_board tests.test_reterminal_io
+python3 -m unittest tests.test_gadget_events tests.test_care_board tests.test_reterminal_io
 CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_care_board
 ```
 
@@ -155,8 +167,9 @@ CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_care_board
 
 一台 E1001 在版本 `4623eb6` 上已验证：Muse 更新显示时钟、天气、留言和测试提醒；
 到点响铃、高亮并向 Muse 发事件；两分钟未确认后发送漏确认事件；绿色键确认后显示勾号、
-页脚提示并向 Muse 发确认事件。本次回复匹配、总线初始化、资源压缩、体积优化和新版页面
-已有主机检查，仍待设备复验；RTC 备用供电与两枚白键也待实机验证。
+页脚提示并向 Muse 发确认事件。一台 E1001 在版本 `519a8a0` 上也已验证回复收集，
+在 `message_done` 后约三秒收尾。本次总线初始化、资源压缩、体积优化和新版页面已有
+主机检查，仍待设备复验；RTC 备用供电与两枚白键也待实机验证。
 
 `link.care` 日志记录提醒编号和状态变化、按键结果、事件类型与序号，以及带时间的重绘请求。
 Link 控制台的 `>event.debug=1` 开启请求/数据行元数据诊断，`>event.debug=0` 结束诊断；
@@ -168,4 +181,10 @@ Link 控制台的 `>event.debug=1` 开启请求/数据行元数据诊断，`>eve
 每轮结束时输出一条 `@event.state`，汇总匹配标志、候选消息编号尾部及长度和计时。
 全部回复消息完成后，同一会话或不带会话的数据行静默三秒即可收尾。
 忙碌等待以最后内容行为起点，最多持续 20 秒；后续内容重置此上限。
-空白保活保持静默计时；尚未完成的轮次保留 90 秒超时。
+空白保活保持静默计时。已匹配回声且未开始助手消息的轮次，在随后收到
+`agent.status` 的 `online`/`idle` 或 `task.status` 的 `completed`/`failed` 后，
+静默四秒即可收尾，诊断原因为 `reason: "silent"`，控制台状态为
+`@event {"status":"delivered","seq":…}`。前一轮回声匹配后，队列中的后续事件可立即
+按先入先出顺序发送；前一轮结束回复收集，诊断原因为 `reason: "next"`，控制台状态同为
+`delivered`。没有后续事件等待时，持续忙碌的轮次保留 90 秒上限。
+这些队列和静默收尾路径已有主机检查，仍待设备复验。

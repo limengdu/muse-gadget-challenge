@@ -39,6 +39,8 @@ static char sent_message[4096], post_body[8192];
 static size_t post_length;
 static noise_ctrl_req_cb callbacks[2];
 static void *contexts[2];
+static bool (*post_hook)(void);
+static void (*delay_hook)(void);
 
 int64_t esp_timer_get_time(void) { return now; }
 SemaphoreHandle_t xSemaphoreCreateMutex(void) { return (void *)1; }
@@ -64,6 +66,7 @@ uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t wait) {
 void vTaskDelay(int ticks) {
     now += (int64_t)ticks * 1000;
     delays++;
+    if (delay_hook) delay_hook();
     if (run_worker && !connected && delays >= 2) connected = true;
     if (keepalive_reply && callbacks[1]) {
         callbacks[1](contexts[1], 0, (const uint8_t *)" \r\t", 3, false);
@@ -99,6 +102,7 @@ bool noise_ctrl_req_send(int64_t id, const void *data, size_t len, bool end, int
     assert(body && !strcmp(field(body, "output_modality"), "text"));
     utf8_copy(sent_message, sizeof(sent_message), field(body, "message"), false);
     cJSON_Delete(body);
+    if (post_hook) return post_hook();
     if (reject_post) {
         const char *error="{\"message\":\"PRIVATE_REJECTED\"}\n";
         callbacks[0](contexts[0],503,(const uint8_t *)error,strlen(error),true);
@@ -127,6 +131,7 @@ static void reset(void) {
     keepalive_reply = busy_reply = reject_post = unfinished_reply = false;
     opens = sends = cancels = delays = 0;
     s_reply[0] = 0;
+    post_hook = NULL; delay_hook = NULL;
     if (s_stream) memset(s_stream,0,sizeof(*s_stream));
 }
 
