@@ -69,6 +69,15 @@ class StickyNotesEink(unittest.TestCase):
     def test_tap_row_toggles_and_untoggles(self):
         self.case("toggle")
 
+    def test_remote_toggle_redraws_with_a_black_checkbox_and_checkmark(self):
+        self.case("remote_toggle")
+
+    def test_revised_text_and_author_request_a_draw_without_moving_rows(self):
+        self.case("revision")
+
+    def test_busy_snapshot_requests_a_retry_and_then_shows_done(self):
+        self.case("view_retry")
+
     def test_swipes_tabs_settings_and_face_remain_reachable(self):
         self.case("lists")
 

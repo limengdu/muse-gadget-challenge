@@ -36,21 +36,23 @@ bool notes_available(void) {
     return sticky_notes_view(s_selected, &view) && view.count > 0;
 }
 
-// Refreshes the snapshot and fences touches when row IDs move on screen.
-// 更新快照，并在屏幕上的行编号移动时隔离旧触摸。
+// Refreshes revised content, retries busy reads and fences moved row IDs.
+// 更新变更内容、重试繁忙的读取，并隔离行编号移动前的旧触摸。
 void notes_prepare(void) {
     sticky_notes_view_t next;
-    if (!sticky_notes_view(s_selected, &next)) return;
+    if (!sticky_notes_view(s_selected, &next)) {
+        request_draw();
+        return;
+    }
     bool moved = next.count != s_view.count || next.selected != s_view.selected
         || next.list.count != s_view.list.count
         || memcmp(next.names, s_view.names, sizeof(next.names)) != 0;
     for (unsigned i = 0; !moved && i < next.list.count; i++)
         if (next.list.items[i].id != s_view.list.items[i].id) moved = true;
-    if (moved && s_view.count) {
-        navigation_changed();
-        request_draw();
-    }
-    if (next.revision != s_view.revision) s_busy = false;
+    bool revised = next.revision != s_view.revision;
+    if (moved && s_view.count) navigation_changed();
+    if (moved || revised) request_draw();
+    if (revised) s_busy = false;
     s_view = next;
     s_selected = s_view.selected;
     if (s_first >= s_view.list.count) s_first = 0;
@@ -139,10 +141,12 @@ void notes_screen(Screen &screen) {
         int y = 136 + (int)row * 74;
         Color color = item.done ? Color::DarkGray : Color::Black;
         Rect box{16, (int16_t)(y + 12), 36, 36};
-        target.stroke(box, Paint::solid(color), 2, 4);
+        // Checkbox outlines and checkmarks are solid black in both row states.
+        // 勾选与未勾选状态的方框及勾号均使用纯黑色。
+        target.stroke(box, Paint::solid(Color::Black), 2, 4);
         if (item.done) {
-            target.line({22, (int16_t)(y + 30)}, {30, (int16_t)(y + 38)}, 3, Paint::solid(color));
-            target.line({30, (int16_t)(y + 38)}, {46, (int16_t)(y + 20)}, 3, Paint::solid(color));
+            target.line({22, (int16_t)(y + 30)}, {30, (int16_t)(y + 38)}, 3, Paint::solid(Color::Black));
+            target.line({30, (int16_t)(y + 38)}, {46, (int16_t)(y + 20)}, 3, Paint::solid(Color::Black));
         }
         int lines = draw_wrapped(66, y + 6, g_w - 82, FONT_M20, item.text, 2, 2, false, color);
         if (item.done) for (int n = 0; n < lines; n++) {

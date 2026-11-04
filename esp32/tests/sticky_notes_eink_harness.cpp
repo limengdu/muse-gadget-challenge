@@ -22,6 +22,7 @@
 #include <cstring>
 #include <deque>
 #include <string>
+#include <vector>
 extern "C" {
 #include "sticky_notes.h"
 }
@@ -55,9 +56,12 @@ static bool s_image_shown;
 enum muse_mode_t {MUSE_MODE_BOOT,MUSE_MODE_IDLE,MUSE_MODE_LISTENING,MUSE_MODE_THINKING,MUSE_MODE_SPEAKING};
 struct {muse_mode_t mode;bool answering;} s_face;
 static sticky_notes_model_t model;
+static void (*notes_redraw)(void);
+static bool view_busy;
 }
 extern "C" bool sticky_notes_view(unsigned selected,sticky_notes_view_t *view) {
     using namespace muse_eink;
+    if(view_busy)return false;
     memset(view,0,sizeof(*view));view->count=model.count;view->selected=selected;
     for(unsigned i=0;i<model.count;i++) {
         snprintf(view->names[i],sizeof(view->names[i]),"%s",model.lists[i].name);
@@ -66,7 +70,7 @@ extern "C" bool sticky_notes_view(unsigned selected,sticky_notes_view_t *view) {
     if(selected<model.count) view->list=model.lists[selected];
     view->revision=model.revision;view->synced_minute=480;return true;
 }
-extern "C" void sticky_notes_watch(void (*callback)(void)) {(void)callback;}
+extern "C" void sticky_notes_watch(void (*callback)(void)) {muse_eink::notes_redraw=callback;}
 extern "C" bool sticky_notes_touch(const char *list,uint32_t id,bool clear) {
     using namespace muse_eink;
     cJSON *params=cJSON_CreateObject();cJSON_AddStringToObject(params,"list",list);
@@ -89,15 +93,39 @@ static int xQueueReceive(int,TouchEvent *e,int) {
 }
 #include "notes_touch.inc"
 struct Target final : DrawTarget {
+    struct Stroke {Rect rect;Paint paint;};
+    struct Line {Point from,to;uint8_t width;Paint paint;};
+    std::vector<Stroke> strokes;
+    std::vector<Line> lines;
     Size measureText(FontId,const char *s,TextStyle)const override{return {(int16_t)(strlen(s)*7),22};}
     int16_t lineHeight(FontId)const override{return 22;}
     void fill(Rect,Paint,uint8_t,uint8_t)override{}
-    void stroke(Rect,Paint,uint8_t,uint8_t,uint8_t)override{}
-    void line(Point,Point,uint8_t,Paint)override{}
+    void stroke(Rect rect,Paint paint,uint8_t,uint8_t,uint8_t)override{strokes.push_back({rect,paint});}
+    void line(Point from,Point to,uint8_t width,Paint paint)override{lines.push_back({from,to,width,paint});}
     void triangle(Point,Point,Point,Paint)override{}
     void text(Rect,const char *,TextStyle)override{}
     void bitmap(Rect,BitmapRef,BitmapMode,Paint,Rotation)override{}
 };
+// Checks the row's outline and both checkmark strokes at their draw coordinates.
+// 按绘制坐标检查行的方框轮廓和勾号的两段笔画。
+static void checkbox(const Target &target,unsigned row,bool done) {
+    int y=136+(int)row*74;
+    unsigned boxes=0,marks=0;
+    for(const auto &stroke:target.strokes) {
+        const auto &rect=stroke.rect;
+        if(rect.x==16 && rect.y==y+12 && rect.width==36 && rect.height==36) {
+            assert(stroke.paint.kind==PaintKind::Solid && stroke.paint.color==Color::Black);boxes++;
+        }
+    }
+    for(const auto &line:target.lines) {
+        bool first=line.from.x==22 && line.from.y==y+30 && line.to.x==30 && line.to.y==y+38;
+        bool second=line.from.x==30 && line.from.y==y+38 && line.to.x==46 && line.to.y==y+20;
+        if(first || second) {
+            assert(line.width==3 && line.paint.kind==PaintKind::Solid && line.paint.color==Color::Black);marks++;
+        }
+    }
+    assert(boxes==1 && marks==(done?2U:0U));
+}
 static void screen(Screen &s,void *) {if(s_notes)notes_screen(s);}
 static void render() {g_app->render();}
 static void tap(int16_t x,int16_t y) {
@@ -124,6 +152,37 @@ static void test(const std::string &name) {
     if(name=="toggle") {
         tap(100,160);assert(model.lists[0].items[0].done);
         tap(100,160);assert(!model.lists[0].items[0].done);
+    } else if(name=="remote_toggle") {
+        checkbox(target,0,false);
+        uint32_t epoch=s_navigation_epoch.load(),revision=s_view.revision;
+        cJSON *params=cJSON_Parse("{\"list\":\"shopping\",\"id\":1}");
+        bool changed;cJSON *result=sticky_notes_apply(&model,"notes.toggle",params,0,&changed);
+        assert(changed && cJSON_IsTrue(cJSON_GetObjectItem(result,"ok")));
+        cJSON_Delete(params);cJSON_Delete(result);
+        s_draw_now=false;assert(notes_redraw);notes_redraw();assert(s_draw_now);
+        // A consumed notification is followed by snapshot-based redraw detection.
+        // 已消费的通知由快照变化检测继续触发重绘。
+        s_draw_now=false;notes_prepare();
+        assert(s_draw_now && s_view.revision>revision && s_view.list.items[0].done);
+        assert(s_navigation_epoch.load()==epoch);
+        target.strokes.clear();target.lines.clear();render();
+        checkbox(target,0,true);checkbox(target,1,false);
+        s_draw_now=false;notes_prepare();assert(!s_draw_now);
+    } else if(name=="revision") {
+        auto &item=model.lists[0].items[0];
+        uint32_t epoch=s_navigation_epoch.load();
+        snprintf(item.text,sizeof(item.text),"Eggs");model.revision++;
+        s_draw_now=false;notes_prepare();assert(s_draw_now && !strcmp(s_view.list.items[0].text,"Eggs"));
+        snprintf(item.who,sizeof(item.who),"Muse");model.revision++;
+        s_draw_now=false;notes_prepare();assert(s_draw_now && !strcmp(s_view.list.items[0].who,"Muse"));
+        assert(s_navigation_epoch.load()==epoch);
+    } else if(name=="view_retry") {
+        uint32_t revision=s_view.revision;
+        model.lists[0].items[0].done=true;model.revision++;
+        view_busy=true;s_draw_now=false;notes_prepare();
+        assert(s_draw_now && s_view.revision==revision && !s_view.list.items[0].done);
+        view_busy=false;s_draw_now=false;notes_prepare();
+        assert(s_draw_now && s_view.revision==model.revision && s_view.list.items[0].done);
     } else if(name=="lists") {
         swipe(-100);assert(s_selected==1 && s_notes && !s_settings);
         swipe(100);assert(s_selected==0 && s_notes);

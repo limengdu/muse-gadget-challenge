@@ -85,7 +85,7 @@ void sticky_notes_watch(void (*callback)(void)) {
 }
 
 bool sticky_notes_view(unsigned selected, sticky_notes_view_t *out) {
-    if (!atomic_load(&s_ready) || !out || xSemaphoreTake(s_lock, 0) != pdTRUE) return false;
+    if (!atomic_load(&s_ready) || !out || xSemaphoreTake(s_lock, pdMS_TO_TICKS(30)) != pdTRUE) return false;
     memset(out, 0, sizeof(*out));
     out->count = s_model->count;
     out->selected = selected < out->count ? selected : 0;

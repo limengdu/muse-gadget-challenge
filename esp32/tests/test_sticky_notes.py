@@ -71,6 +71,12 @@ esp_err_t nvs_get_blob(nvs_handle_t, const char *, void *, size_t *);
     def test_nvs_roundtrip_storage_failure_and_busy_queue(self):
         self.case("service", "persistence")
 
+    def test_remote_toggle_notifies_after_publishing_done_rows(self):
+        self.case("service", "remote_redraw")
+
+    def test_ui_snapshot_waits_briefly_for_a_busy_lock(self):
+        self.case("service", "view_contention")
+
     def test_touch_event_debounce_and_coalescing(self):
         self.case("service", "events")
 

@@ -21,7 +21,9 @@ static bool online = true, send_ok = true, nvs_fail, queue_full, event_ok = true
 static sticky_notes_model_t disk, staged;
 static bool disk_exists;
 static unsigned writes, events, cancels, results, redraws;
-static void observed_redraw(void) { redraws++; }
+static bool lock_busy, lock_timeout, lock_held;
+static TickType_t last_lock_wait;
+static void observed_redraw(void) { assert(!lock_held); redraws++; }
 static char last_event[256], last_body[2048];
 static noise_ctrl_req_cb callback;
 static void *callback_ctx;
@@ -33,8 +35,12 @@ bool gadget_clock_valid(void) { return true; }
 int64_t gadget_clock_epoch(void) { return 1704067200LL; }
 int gadget_clock_minutes_of_day(void) { return 480; }
 SemaphoreHandle_t xSemaphoreCreateMutex(void) { return (void *)1; }
-BaseType_t xSemaphoreTake(SemaphoreHandle_t lock, TickType_t wait) { (void)lock; (void)wait; return pdTRUE; }
-BaseType_t xSemaphoreGive(SemaphoreHandle_t lock) { (void)lock; return pdTRUE; }
+BaseType_t xSemaphoreTake(SemaphoreHandle_t lock, TickType_t wait) {
+    (void)lock; assert(!lock_held); last_lock_wait = wait;
+    if (lock_busy && (!wait || lock_timeout)) return pdFALSE;
+    lock_busy = false; lock_held = true; return pdTRUE;
+}
+BaseType_t xSemaphoreGive(SemaphoreHandle_t lock) { (void)lock; assert(lock_held); lock_held = false; return pdTRUE; }
 QueueHandle_t xQueueCreate(unsigned length, unsigned size) { assert(length == 4 && size == sizeof(job_t)); return (void *)1; }
 BaseType_t xQueueSend(QueueHandle_t q, const void *job, int wait) {
     (void)q; (void)wait; if (queue_full || queued_valid) return pdFALSE;
@@ -113,6 +119,34 @@ static void persistence(void) {
     disk.count = STICKY_NOTES_LISTS + 1; assert(!load(&restored));
     disk = *s_model; memset(disk.lists[0].items[0].text, 'x', STICKY_NOTES_TEXT); assert(!load(&restored));
 }
+static void remote_redraw(void) {
+    sticky_notes_watch(observed_redraw);
+    assert(sticky_notes_init());
+    execute("notes.add", "{\"list\":\"shopping\",\"items\":[\"Eggs\",\"Milk\"]}");
+    sticky_notes_view_t view;
+    assert(sticky_notes_view(0, &view) && !view.list.items[0].done);
+    for (unsigned i = 0; i < 2; i++) {
+        unsigned before = redraws;
+        uint32_t revision = view.revision;
+        execute("notes.toggle", i ? "{\"list\":\"shopping\",\"id\":2}"
+                                  : "{\"list\":\"shopping\",\"id\":1}");
+        assert(redraws == before + 1 && !s_event.count);
+        assert(sticky_notes_view(0, &view) && view.revision > revision && view.list.items[i].done);
+    }
+}
+static void view_contention(void) {
+    assert(sticky_notes_init());
+    execute("notes.add", "{\"list\":\"shopping\",\"items\":[\"Eggs\"]}");
+    lock_busy = true;
+    sticky_notes_view_t view;
+    assert(sticky_notes_view(0, &view) && !lock_busy);
+    assert(last_lock_wait >= pdMS_TO_TICKS(10) && last_lock_wait <= pdMS_TO_TICKS(100));
+    sticky_notes_view_t before = view;
+    lock_busy = lock_timeout = true;
+    assert(!sticky_notes_view(0, &view) && !memcmp(&before, &view, sizeof(view)));
+    lock_timeout = false;
+    assert(sticky_notes_view(0, &view) && view.revision == s_model->revision);
+}
 static void coalescing(void) {
     assert(sticky_notes_init());
     execute("notes.set", "{\"list\":\"shopping\",\"title\":\"Shopping\",\"items\":[\"Eggs\",\"Milk\"]}");
@@ -189,6 +223,8 @@ static void synchronization(void) {
 int main(int argc, char **argv) {
     assert(argc == 2);
     if (!strcmp(argv[1], "persistence")) persistence();
+    else if (!strcmp(argv[1], "remote_redraw")) remote_redraw();
+    else if (!strcmp(argv[1], "view_contention")) view_contention();
     else if (!strcmp(argv[1], "events")) coalescing();
     else synchronization();
     puts("ok");
