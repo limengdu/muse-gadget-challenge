@@ -195,3 +195,17 @@ the bad line.
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for the desktop dependency versions and
 licenses.
+
+## Home Eyes cards
+
+The simulator builds the Home Eyes overlay independently of the camera and
+network worker. Scenario key home_eyes accepts watching, message, verdict or
+alert. After an advance step has presented a card, home_eyes_ack=true exercises
+the same dismiss function used by the wheel. CTest checks all four 412×412
+scenes and returns from each card to the face.
+
+~~~sh
+./esp32/simulator/build/muse_simulator --headless \
+  --scenario esp32/simulator/tests/scenarios/home-eyes-alert.txt \
+  --screenshot home-eyes-alert.ppm
+~~~

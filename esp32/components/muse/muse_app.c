@@ -29,6 +29,9 @@
 #include "muse_settings.h"
 #include "muse_state.h"
 #include "muse_ui.h"
+#if CONFIG_MUSE_HOME_EYES
+#include "muse_home_eyes_ui.h"
+#endif
 #include "muse_voice.h"
 #include "muse_wifi.h"
 #if CONFIG_MUSE_VIDEO_WIFI
@@ -97,6 +100,9 @@ void muse_app_run(const muse_board_t *board)
         muse_state_set_caption("%s", "");   /* the button icons say how to talk */
     }
 
+#if CONFIG_MUSE_HOME_EYES
+    muse_home_eyes_ready();
+#endif
     muse_hatch_start();
     /* Home Link owns the radios; these just hand it the saved settings. */
     muse_wifi_apply();

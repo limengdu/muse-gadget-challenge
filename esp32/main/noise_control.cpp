@@ -35,6 +35,9 @@
 #include "esp_crt_bundle.h"
 #include "esp_random.h"
 #include "esp_heap_caps.h"
+#if CONFIG_MUSE_HOME_EYES
+#include "home_eyes.h"
+#endif
 #include "esp_http_client.h"
 #include "esp_app_desc.h"
 #include "freertos/FreeRTOS.h"
@@ -1559,6 +1562,10 @@ static char *build_register_json(void) {
                 nullptr, nullptr);
     cJSON_AddNumberToObject(
         cJSON_GetObjectItem(commands, "camera.capture"), "timeout_ms", 30000);
+#endif
+
+#if CONFIG_MUSE_HOME_EYES
+    home_eyes_register(commands);
 #endif
 
     if (ota_is_enabled()) {

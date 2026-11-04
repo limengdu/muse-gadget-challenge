@@ -51,6 +51,9 @@
 #include "gadget_clock.h"
 #endif
 #include "config_store.h"
+#if CONFIG_MUSE_HOME_EYES
+#include "home_eyes.h"
+#endif
 #include "wifi_mgr.h"
 #include "wifi_known.h"
 #include "customer_product_info.h"
@@ -1885,6 +1888,11 @@ static cJSON *on_ws_command(
         return gadget_clock_command(params, request_id, session_generation);
     }
 #endif
+#if CONFIG_MUSE_HOME_EYES
+    if (home_eyes_handles(command)) {
+        return home_eyes_command(command, params);
+    }
+#endif
     if (strcmp(command, "device.list_vms") == 0) {
         return list_vms_command();
     }
@@ -2657,6 +2665,9 @@ void app_run(void) {
     } else {
         ESP_LOGW(TAG, "gadget events init failed");
     }
+#endif
+#if CONFIG_MUSE_HOME_EYES
+    if (!home_eyes_init()) ESP_LOGW(TAG, "Home Eyes init failed");
 #endif
     heap_snapshot("after noise_ctrl_init");
 #if CONFIG_HOMEHUB_BLE_COMMANDS

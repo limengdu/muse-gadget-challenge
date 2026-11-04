@@ -95,6 +95,10 @@ else()
     list(APPEND GADGET_SRCS "led_status.c")
 endif()
 
+if(CONFIG_MUSE_HOME_EYES)
+    list(APPEND GADGET_SRCS "home_eyes.c" "home_eyes_core.c")
+endif()
+
 if(CONFIG_HOMEHUB_GADGET_EVENTS)
     list(APPEND GADGET_SRCS "gadget_events.c")
 endif()

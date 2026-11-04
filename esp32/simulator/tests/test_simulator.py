@@ -88,6 +88,16 @@ def main() -> None:
         recovered, _ = render(binary, after_off, tmp_path / "after-off.ppm")
         assert recovered == hashes["listening"], "Off prevented the next preview state"
 
+        face = tmp_path / "return-face.txt"
+        face.write_text((HERE / "scenarios/home-eyes-watching.txt").read_text() + "advance=200\n")
+        face_digest, _ = render(binary, face, tmp_path / "return-face.ppm")
+        for card in ("message", "alert", "verdict"):
+            dismissed = tmp_path / f"dismiss-{card}.txt"
+            dismissed.write_text((HERE / f"scenarios/home-eyes-{card}.txt").read_text()
+                                 + "advance=200\nhome_eyes_ack=true\n")
+            digest, _ = render(binary, dismissed, tmp_path / f"dismiss-{card}.ppm")
+            assert digest == face_digest, f"{card}: acknowledgement did not return to face"
+
         invalid = tmp_path / "invalid.txt"
         for setting in ("face=definitely-not-a-mode", "level=nan"):
             invalid.write_text(f"{setting}\n")

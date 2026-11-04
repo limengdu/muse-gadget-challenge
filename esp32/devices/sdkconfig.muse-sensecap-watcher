@@ -79,3 +79,10 @@ CONFIG_MUSE_STATIC_BUFFERS_IN_PSRAM=y
 # actually slept, and how long each power lock kept the chip awake.
 CONFIG_PM_LIGHT_SLEEP_CALLBACKS=y
 CONFIG_PM_PROFILING=y
+
+# Home Eyes uses the built-in camera and Link event/clock services.
+CONFIG_MUSE_WATCHER_CAMERA=y
+CONFIG_MUSE_HOME_EYES=y
+CONFIG_HOMEHUB_GADGET_EVENTS=y
+CONFIG_HOMEHUB_GADGET_CLOCK=y
+CONFIG_LV_FONT_MONTSERRAT_24=y

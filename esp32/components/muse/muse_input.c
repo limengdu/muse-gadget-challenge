@@ -43,6 +43,9 @@
 #include "muse_settings.h"
 #include "muse_state.h"
 #include "muse_ui.h"
+#if CONFIG_MUSE_HOME_EYES
+#include "muse_home_eyes_ui.h"
+#endif
 #include "muse_voice.h"
 #include "muse_wifi.h"
 #if CONFIG_MUSE_VIDEO
@@ -273,6 +276,18 @@ static void talk_button(unsigned ev)
     static bool swallow;
 #if CONFIG_MUSE_WATCHER_CAMERA
     static TickType_t last_release;
+#if CONFIG_MUSE_HOME_EYES
+    static bool home_swallow;
+    if (home_swallow) {
+        if (ev & MUSE_BTN_TALK_RELEASE) home_swallow = false;
+        return;
+    }
+    if ((ev & MUSE_BTN_TALK_PRESS) && !muse_state_asleep() && muse_home_eyes_dismiss()) {
+        last_release = 0;
+        home_swallow = !(ev & MUSE_BTN_TALK_RELEASE);
+        return;
+    }
+#endif
     if ((ev & MUSE_BTN_TALK_PRESS) && !muse_state_asleep()
         && !muse_menu_is_open() && last_release
         && xTaskGetTickCount() - last_release <= pdMS_TO_TICKS(350)) {
@@ -496,7 +511,13 @@ static bool update_wifi_nap(TickType_t now, bool paused)
         s_nap_now = false;
         muse_state_set_as_if_battery(false);
     }
-    bool nap = paused && !muse_voice_notes_waiting()
+    bool remote_ready = false;
+#if CONFIG_MUSE_HOME_EYES
+    /* Keep remote commands reachable while the radio uses modem sleep.
+     * 无线电使用省电模式时，继续接收远程命令。 */
+    remote_ready = true;
+#endif
+    bool nap = !remote_ready && paused && !muse_voice_notes_waiting()
                && (s_nap_now || (s_cpu_low && now - low_since >= pdMS_TO_TICKS(WIFI_NAP_MS)));
     if (nap != napping) {
         napping = nap;

@@ -67,6 +67,7 @@ static UINT jpeg_read(JDEC *jd, BYTE *buffer, UINT count)
 
 static UINT jpeg_draw(JDEC *jd, void *bitmap, JRECT *rect)
 {
+    (void)jd;
     int left = rect->left;
     int top = rect->top;
     int right = rect->right > CAMERA_PREVIEW_SIZE - 1 ? CAMERA_PREVIEW_SIZE - 1 : rect->right;
@@ -239,3 +240,69 @@ void watcher_camera_preview_toggle(void)
         atomic_store(&s_busy, false);
     }
 }
+
+#if CONFIG_MUSE_HOME_EYES
+typedef struct {
+    jpeg_source_t source;
+    unsigned side, width, height;
+    uint32_t sums[32 * 32];
+    uint16_t counts[32 * 32];
+} thumbnail_t;
+
+static UINT thumbnail_draw(JDEC *jd, void *bitmap, JRECT *rect)
+{
+    thumbnail_t *t = jd->device;
+    const uint8_t *rgb = bitmap;
+    unsigned width = rect->right - rect->left + 1;
+    for (unsigned y = rect->top; y <= rect->bottom; y++) {
+        for (unsigned x = rect->left; x <= rect->right; x++) {
+            unsigned dx = x * t->side / t->width, dy = y * t->side / t->height;
+            if (dx >= t->side || dy >= t->side) continue;
+            unsigned i = ((y - rect->top) * width + x - rect->left) * 3;
+            unsigned n = dy * t->side + dx;
+            t->sums[n] += (77 * rgb[i] + 150 * rgb[i + 1] + 29 * rgb[i + 2]) >> 8;
+            t->counts[n]++;
+        }
+    }
+    return 1;
+}
+
+// Decode a fresh or live-preview frame into a bounded grayscale thumbnail.
+// 将新拍摄或实时预览的画面解码成有界灰度缩略图。
+bool watcher_camera_thumbnail(uint8_t *pixels, size_t side, const char **error)
+{
+    if (!pixels || !error || side == 0 || side > 32) return false;
+    *error = "camera busy";
+    if (watcher_camera_prepare() != ESP_OK || atomic_exchange(&s_busy, true)) return false;
+    thumbnail_t *t = heap_caps_calloc(1, sizeof(*t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    void *pool = heap_caps_malloc(CAMERA_JPEG_POOL, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    camera_frame_t frame = {0};
+    bool preview = s_preview_active, locked = false, ok = false;
+    if (!t || !pool) { *error = "thumbnail memory allocation failed"; goto done; }
+    if (preview) {
+        xSemaphoreTake(s_lock, portMAX_DELAY); locked = true;
+        t->source.data = s_last; t->source.length = s_last_len;
+    } else {
+        if (camera_capture(&frame) != ESP_OK) { *error = "camera check failed"; goto done; }
+        t->source.data = frame.jpeg; t->source.length = frame.len;
+    }
+    if (!t->source.data) { *error = "no camera frame yet"; goto done; }
+    JDEC jd;
+    *error = "camera JPEG could not be decoded";
+    if (jd_prepare(&jd, jpeg_read, pool, CAMERA_JPEG_POOL, t) != JDR_OK) goto done;
+    t->width = jd.width / 8; t->height = jd.height / 8; t->side = side;
+    if (t->width < side || t->height < side || jd.width > 1280 || jd.height > 1280) goto done;
+    if (jd_decomp(&jd, thumbnail_draw, 3) != JDR_OK) goto done;
+    for (unsigned i = 0; i < side * side; i++) {
+        if (!t->counts[i]) goto done;
+        pixels[i] = t->sums[i] / t->counts[i];
+    }
+    ok = true; *error = NULL;
+done:
+    if (locked) xSemaphoreGive(s_lock);
+    if (frame.jpeg) camera_release(&frame);
+    free(t); free(pool);
+    atomic_store(&s_busy, false);
+    return ok;
+}
+#endif

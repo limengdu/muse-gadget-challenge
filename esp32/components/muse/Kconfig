@@ -235,6 +235,17 @@ menu "Muse"
             memory and preview decoding shares CPU time with voice and Link.
             Leave disabled to build without camera support.
 
+    config MUSE_HOME_EYES
+        bool "Home Eyes watches and messages"
+        depends on MUSE_WATCHER_CAMERA
+        select HOMEHUB_DAEMON_REQUESTS
+        select HOMEHUB_GADGET_EVENTS
+        select HOMEHUB_GADGET_CLOCK
+        default n
+        help
+            Watch a fixed camera scene at timed intervals, request Muse verdicts
+            on changes, and show messages and acknowledged alerts on the face.
+
     config MUSE_CJK_FONT
         bool "Show Chinese and Japanese in captions"
         depends on MUSE_ENABLED

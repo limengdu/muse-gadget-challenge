@@ -736,9 +736,10 @@ Got it working on something new? Share it in the
 
 ### Watcher camera
 
-Camera support is disabled by default. In the Watcher build's `menuconfig`,
-under **Muse**, enable **SenseCAP Watcher camera capture and live preview**
-(`CONFIG_MUSE_WATCHER_CAMERA=y`) and rebuild. It requires PSRAM. Disabled
+The Watcher overlay enables camera capture and
+[Home Eyes](../../projects/home-eyes/README.md) by default. In the build's `menuconfig`,
+under **Muse**, **SenseCAP Watcher camera capture and live preview**
+(`CONFIG_MUSE_WATCHER_CAMERA=y`) controls the camera feature. It requires PSRAM. Disabled
 builds omit the camera worker, shutter UI, double-click gesture, and
 `camera.capture` command.
 

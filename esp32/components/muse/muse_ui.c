@@ -15,6 +15,9 @@
  */
 
 #include "muse_ui.h"
+#if CONFIG_MUSE_HOME_EYES
+#include "muse_home_eyes_ui.h"
+#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -1709,6 +1712,9 @@ static void frame_tick(lv_timer_t *timer)
         muse_menu_close();
         return;   /* video covers everything */
     }
+#endif
+#if CONFIG_MUSE_HOME_EYES
+    muse_home_eyes_tick();
 #endif
     update_chrome(now);
     if (muse_menu_tick(now)) {

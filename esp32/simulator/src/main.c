@@ -33,6 +33,7 @@
 
 #include "muse_state.h"
 #include "muse_ui.h"
+#include "muse_home_eyes_ui.h"
 #include "sim_board.h"
 #include "sim_platform.h"
 #include "sim_services.h"
@@ -359,6 +360,26 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
     }
     if (!strcmp(key, "brightness") && parse_long(value, 10, 100, &number)) {
         sim_services_set_brightness((int)number);
+        return true;
+    }
+    if (!strcmp(key, "home_eyes")) {
+        muse_home_eyes_view_t v = { .active = true, .next_ms = 600000 };
+        strcpy(v.name, "3D printer");
+        if (!strcmp(value, "message") || !strcmp(value, "alert") || !strcmp(value, "verdict")) {
+            v.card_id = 1;
+            v.alert = !strcmp(value, "alert");
+            strcpy(v.heading, v.alert ? "HOME EYES ALERT" : !strcmp(value, "message") ? "From Parent" : "HOME EYES VERDICT");
+            strcpy(v.text, v.alert ? "Print detached from the bed. Please check the printer." :
+                   !strcmp(value, "message") ? "I will be home in 20 minutes. Dinner is in the fridge." :
+                   "The print is progressing normally.");
+            strcpy(v.time, "11-04 18:20");
+        } else if (strcmp(value, "watching")) return false;
+        muse_home_eyes_publish(&v);
+        return true;
+    }
+    if (!strcmp(key, "home_eyes_ack") && parse_bool(value, &flag) && flag) {
+        if (!muse_home_eyes_dismiss()) return false;
+        muse_home_eyes_take_ack();
         return true;
     }
     if (!strcmp(key, "advance") && parse_long(value, 0, 3600000, &number)) {
