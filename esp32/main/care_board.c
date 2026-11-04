@@ -30,12 +30,13 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include <inttypes.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
-static const char *TAG = "link.care_board";
+static const char *TAG = "link.care";
 typedef enum { JOB_UPDATE, JOB_STATE, JOB_CLEAR, JOB_KEY } job_kind_t;
 typedef struct {
     job_kind_t kind;
@@ -70,13 +71,51 @@ static care_model_t *clone_model(void) {
     return copy;
 }
 
+static const char *status_name(care_status_t status) {
+    static const char *const names[] = {"pending", "due", "done", "missed"};
+    return (unsigned)status < sizeof(names) / sizeof(names[0]) ? names[status] : "unknown";
+}
+
+// Logs state changes using reminder IDs and timestamps.
+// 使用提醒编号和时间戳记录状态变化。
+static void log_transitions(const care_model_t *old, const care_model_t *next) {
+    for (unsigned i = 0; i < next->reminder_count; i++) {
+        const care_reminder_t *item = &next->reminders[i], *before = NULL;
+        for (unsigned j = 0; j < old->reminder_count; j++) {
+            if (!strcmp(item->id, old->reminders[j].id)) { before = &old->reminders[j]; break; }
+        }
+        if (!before || before->status != item->status) ESP_LOGI(TAG,
+            "reminder id=%s status=%s->%s due_at=%" PRId64 " done_at=%" PRId64,
+            item->id, before ? status_name(before->status) : "new", status_name(item->status), item->due_at, item->done_at);
+    }
+    for (unsigned i = 0; i < old->reminder_count; i++) {
+        bool found = false;
+        for (unsigned j = 0; j < next->reminder_count; j++) found |= !strcmp(old->reminders[i].id, next->reminders[j].id);
+        if (!found) ESP_LOGI(TAG, "reminder id=%s status=%s->removed", old->reminders[i].id, status_name(old->reminders[i].status));
+    }
+}
+
+static void request_redraw(const char *reason) {
+    s_redraw = true;
+    ESP_LOGI(TAG, "redraw request reason=%s at=%" PRId64, reason, gadget_clock_epoch());
+}
+
 static void publish(care_model_t *model) {
+    log_transitions(s_model, model);
     xSemaphoreTake(s_lock, portMAX_DELAY);
     care_model_t *old = s_model; s_model = model;
     xSemaphoreGive(s_lock); free(old);
 }
 
-static bool post_event(const char *summary, const cJSON *data) { return gadget_events_post("Care Board", summary, data); }
+static bool post_event(const char *summary, const cJSON *data) {
+    uint64_t seq = 0;
+    bool ok = gadget_events_post_seq("Care Board", summary, data, &seq);
+    const char *type = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(data, "type"));
+    const char *id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(data, "id"));
+    ESP_LOGI(TAG, "event type=%s seq=%" PRIu64 " id=%s queued=%d at=%" PRId64,
+        type ? type : "unknown", seq, id ? id : "-", ok, gadget_clock_epoch());
+    return ok;
+}
 static void chime(bool gentle) { if (!gentle) s_confirmation_sound = true; reterminal_io_chime(gentle); }
 static const care_hooks_t s_hooks = {.event = post_event, .chime = chime};
 
@@ -154,10 +193,18 @@ static void process_job(care_job_t *job) {
         if (!candidate) result = error_result("out_of_memory", "could not copy care state");
         else if (job->kind == JOB_KEY) {
             if (keys_ready()) {
+                int oldest = care_model_oldest(candidate);
+                bool unread = false;
+                for (unsigned i = 0; i < candidate->message_count; i++) unread |= !candidate->messages[i].read;
+                const char *action = job->key == CARE_LEFT ? "checkin" : job->key == CARE_RIGHT ? "call_request"
+                    : oldest >= 0 ? "ack" : unread ? "read" : "nothing";
+                const char *id = job->key == CARE_GREEN && oldest >= 0 ? candidate->reminders[oldest].id : "-";
                 bool accepted = care_model_key(candidate, job->key, gadget_clock_epoch(),
                     gadget_clock_offset_minutes(), esp_timer_get_time(), &s_hooks);
+                ESP_LOGI(TAG, "key=%d action=%s id=%s accepted=%d at=%" PRId64,
+                    (int)job->key, action, id, accepted, gadget_clock_epoch());
                 if (accepted || strcmp(candidate->footer, s_model->footer)) {
-                    s_storage_ok = care_store_save(candidate); publish(candidate); candidate = NULL; s_redraw = true;
+                    s_storage_ok = care_store_save(candidate); publish(candidate); candidate = NULL; request_redraw("key");
                 }
             }
             free(candidate);
@@ -165,7 +212,7 @@ static void process_job(care_job_t *job) {
             candidate->active = false;
             s_storage_ok = care_store_save(candidate);
             if (!s_storage_ok) { free(candidate); result = error_result("storage_failed", "could not save care state"); }
-            else { publish(candidate); led_status_show_animation(); s_redraw = false; result = state_result(); }
+            else { publish(candidate); led_status_show_animation(); s_redraw = false; ESP_LOGI(TAG, "redraw request reason=clear"); result = state_result(); }
         } else {
             bool new_message; const char *error;
             if (!care_model_patch(candidate, job->params, gadget_clock_epoch(), gadget_clock_offset_minutes(), &new_message, &error)) {
@@ -179,7 +226,7 @@ static void process_job(care_job_t *job) {
                     s_storage_ok = care_store_save(s_model); free(candidate);
                     result = error_result("clock_failed", "could not set care clock");
                 } else {
-                    publish(candidate); s_redraw = true;
+                    publish(candidate); request_redraw("update");
                     if (new_message) chime(false);
                     result = state_result();
                 }
@@ -224,7 +271,7 @@ static void care_task(void *arg) {
             bool changed;
             next = care_model_step(candidate, now, gadget_clock_offset_minutes(), &s_hooks, &changed);
             if (changed) {
-                s_redraw = s_redraw || visible_changed(s_model, candidate);
+                if (visible_changed(s_model, candidate)) request_redraw("schedule");
                 s_storage_ok = care_store_save(candidate); publish(candidate);
             } else free(candidate);
         } else next = now + 1;
@@ -264,7 +311,7 @@ bool care_board_init(bool (*ready)(void)) {
     s_model = care_memory_alloc(sizeof(*s_model));
     if (!s_lock || !s_jobs || !s_model) return false;
     care_model_init(s_model); care_store_load(s_model);
-    s_redraw = s_model->active;
+    if (s_model->active) request_redraw("restore");
     if (!reterminal_io_init(keys_ready, key_received)) ESP_LOGW(TAG, "some reTerminal IO is unavailable");
     int64_t rtc;
     s_rtc_ok = reterminal_io_rtc_read(&rtc);

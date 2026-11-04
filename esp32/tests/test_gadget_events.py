@@ -29,12 +29,24 @@ class GadgetEvents(unittest.TestCase):
             out = Path(tmp)
             write_rtos(out)
             (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 0\n")
-            binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True)
+            binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
+                flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"'])
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             progress = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith("@event ")]
             self.assertEqual([line["status"] for line in progress], ["queued", "sent", "reply"])
             self.assertEqual(progress[-1]["text"], "All ready!")
+            self.assertNotIn("PRIVATE_", result.stdout)
+            debug = [json.loads(line[len("@event.debug "):]) for line in result.stdout.splitlines() if line.startswith("@event.debug ")]
+            self.assertEqual(debug, [{"enabled": True}, {"enabled": False}])
+            rows = [json.loads(line[len("@event.row "):]) for line in result.stdout.splitlines() if line.startswith("@event.row ")]
+            self.assertTrue(rows)
+            self.assertTrue(any(row["len"] > 12288 and row["keys"] == [] for row in rows))
+            self.assertTrue(any(row["ids"].get("payload.message_id") == "message-id" for row in rows))
+            for row in rows:
+                self.assertEqual(set(row), {"req", "status", "len", "keys", "type", "event", "event_name", "payload_keys", "ids"})
+            for line in result.stdout.splitlines():
+                if line.startswith("@event.request "): json.loads(line[len("@event.request "):])
 
     def test_psram_allocation_and_no_internal_fallback_when_present(self):
         for present in (0, 1):
@@ -44,7 +56,7 @@ class GadgetEvents(unittest.TestCase):
                 (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 1\n")
                 (out / "esp_psram.h").write_text("#include <stdbool.h>\nbool esp_psram_is_initialized(void);\n")
                 binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
-                    flags=["-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])
+                    flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"', "-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])
                 result = run_host(binary)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

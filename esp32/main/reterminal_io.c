@@ -27,6 +27,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 // Sources: Seeed reTerminal E1001 V1.2 schematic, sheet GPIO/I2C/PWM, and
@@ -85,6 +86,7 @@ bool reterminal_io_rtc_encode(int64_t epoch, uint8_t raw[8]) {
 static const char *TAG = "link.reterminal_io";
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_rtc;
+static _Atomic(SemaphoreHandle_t) s_bus_mutex;
 static TaskHandle_t s_task;
 static reterminal_ready_cb s_ready;
 static reterminal_key_cb s_key;
@@ -92,37 +94,73 @@ static atomic_bool s_due;
 static atomic_int s_sound;
 static bool s_buzzer_ready;
 
-bool reterminal_io_i2c_bus(i2c_master_bus_handle_t *out) {
-    if (!out) return false;
-    if (!s_bus) {
-        esp_err_t err = i2c_master_get_bus_handle(I2C_NUM_0, &s_bus);
-        if (err != ESP_OK) {
-            i2c_master_bus_config_t config = {
-                .i2c_port = I2C_NUM_0, .sda_io_num = I2C_SDA_GPIO, .scl_io_num = I2C_SCL_GPIO,
-                .clk_source = I2C_CLK_SRC_DEFAULT, .glitch_ignore_cnt = 7,
-                .flags.enable_internal_pullup = true,
-            };
-            err = i2c_new_master_bus(&config, &s_bus);
-        }
-        if (err != ESP_OK) return false;
+// Publishes one shared mutex for order-independent bus and RTC initialization.
+// 发布共用互斥锁，使总线和 RTC 初始化不依赖调用先后顺序。
+static SemaphoreHandle_t bus_mutex(void) {
+    SemaphoreHandle_t mutex = atomic_load(&s_bus_mutex);
+    if (!mutex) {
+        SemaphoreHandle_t created = xSemaphoreCreateMutex();
+        if (!created) return NULL;
+        if (atomic_compare_exchange_strong(&s_bus_mutex, &mutex, created)) mutex = created;
+        else vSemaphoreDelete(created);
     }
-    *out = s_bus; return true;
+    return mutex;
+}
+
+bool reterminal_io_i2c_bus(i2c_master_bus_handle_t *out) {
+    SemaphoreHandle_t mutex = bus_mutex();
+    if (!out || !mutex) return false;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    if (!s_bus) {
+        i2c_master_bus_config_t config = {
+            .i2c_port = I2C_NUM_0, .sda_io_num = I2C_SDA_GPIO, .scl_io_num = I2C_SCL_GPIO,
+            .clk_source = I2C_CLK_SRC_DEFAULT, .glitch_ignore_cnt = 7,
+            .flags.enable_internal_pullup = true,
+        };
+        if (i2c_new_master_bus(&config, &s_bus) != ESP_OK) s_bus = NULL;
+    }
+    *out = s_bus;
+    xSemaphoreGive(mutex);
+    return *out != NULL;
+}
+
+static bool rtc_device(void) {
+    i2c_master_bus_handle_t bus;
+    if (!reterminal_io_i2c_bus(&bus)) return false;
+    SemaphoreHandle_t mutex = bus_mutex();
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    if (!s_rtc) {
+        i2c_device_config_t config = {.dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = RTC_ADDRESS, .scl_speed_hz = 100000};
+        if (i2c_master_bus_add_device(bus, &config, &s_rtc) != ESP_OK) s_rtc = NULL;
+    }
+    bool ready = s_rtc != NULL;
+    xSemaphoreGive(mutex);
+    return ready;
 }
 
 bool reterminal_io_rtc_read(int64_t *epoch) {
-    if (!s_rtc) return false;
+    if (!rtc_device()) return false;
     uint8_t reg = 0, raw[9];
-    return i2c_master_transmit_receive(s_rtc, &reg, 1, raw, sizeof(raw), 100) == ESP_OK
+    SemaphoreHandle_t mutex = bus_mutex();
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    bool ok = i2c_master_transmit_receive(s_rtc, &reg, 1, raw, sizeof(raw), 100) == ESP_OK
         && reterminal_io_rtc_decode(raw, epoch);
+    xSemaphoreGive(mutex);
+    return ok;
 }
 
 bool reterminal_io_rtc_write(int64_t epoch) {
     uint8_t raw[8];
-    if (!s_rtc || !reterminal_io_rtc_encode(epoch, raw)) return false;
+    if (!reterminal_io_rtc_encode(epoch, raw) || !rtc_device()) return false;
     const uint8_t stop[] = {0x00, 0x20}, start[] = {0x00, 0x00};
-    if (i2c_master_transmit(s_rtc, stop, sizeof(stop), 100) != ESP_OK) return false;
-    if (i2c_master_transmit(s_rtc, raw, sizeof(raw), 100) != ESP_OK) return false;
-    return i2c_master_transmit(s_rtc, start, sizeof(start), 100) == ESP_OK;
+    SemaphoreHandle_t mutex = bus_mutex();
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    bool ok = i2c_master_transmit(s_rtc, stop, sizeof(stop), 100) == ESP_OK
+        && i2c_master_transmit(s_rtc, raw, sizeof(raw), 100) == ESP_OK;
+    bool running = i2c_master_transmit(s_rtc, start, sizeof(start), 100) == ESP_OK;
+    xSemaphoreGive(mutex);
+    return ok && running;
 }
 
 static void tone(bool on) {
@@ -209,13 +247,7 @@ bool reterminal_io_init(reterminal_ready_cb ready, reterminal_key_cb key) {
         .channel = BUZZER_CHANNEL, .timer_sel = BUZZER_TIMER, .duty = 0, .hpoint = 0};
     s_buzzer_ready = ledc_timer_config(&timer) == ESP_OK && ledc_channel_config(&channel) == ESP_OK;
     if (!s_buzzer_ready) ESP_LOGW(TAG, "buzzer initialization unavailable");
-    i2c_master_bus_handle_t bus;
-    if (reterminal_io_i2c_bus(&bus)) {
-        i2c_device_config_t rtc = {.dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = RTC_ADDRESS, .scl_speed_hz = 100000};
-        esp_err_t err = i2c_master_bus_add_device(bus, &rtc, &s_rtc);
-        if (err != ESP_OK) ESP_LOGW(TAG, "RTC attach status=%d", (int)err);
-    }
+    if (!rtc_device()) ESP_LOGW(TAG, "RTC attach unavailable");
     if (xTaskCreate(io_task, "reterminal_io", 3072, NULL, 3, &s_task) != pdPASS) return false;
     esp_err_t err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return false;

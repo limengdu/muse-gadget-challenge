@@ -34,8 +34,12 @@ boards without PSRAM allocate them in internal RAM. A PSRAM allocation failure
 leaves event initialization unsuccessful.
 
 One worker sends events in order over Link. It subscribes to `/chat/subscribe`
-before posting JSON to `/chat/stream`, correlates replies with the POST's
-message ID and retains at most 600 UTF-8 bytes of the most recent reply.
+before posting JSON to `/chat/stream`. The POST acknowledgement and matching
+`message.user` echo establish the user message ID/session. Assistant messages in
+that session that start after the echo form the reply, joined in start order.
+A turn settles after every started message is done and three seconds of quiet.
+Up to eight assistant messages are tracked; exceeding that bound drains the turn
+until timeout. At most 600 UTF-8 bytes of the most recent reply are retained.
 `gadget_events_reply()` copies that reply. Unsent requests retry with a
 1–30 second exponential delay. A submitted message is drained for up to 90
 seconds; an unavailable reply is reported while the next event proceeds.
@@ -51,7 +55,11 @@ Sequence numbers are monotonic within one boot; the queue and ring live in RAM.
 On the Link console, `>event=Ready for school` posts a `console` event.
 Progress is emitted as `@event` JSON with `queued`, `sent`, `reply` or `error`.
 The `reply` record includes `text`. Reply content is written through this
-console path. `sdk_token_console_register_handler()` registers additional
+console path. `>event.debug=1` enables metadata-only `@event.row` and
+`@event.request` diagnostics, including row sizes, keys, discriminator fields and
+string IDs; `>event.debug=0` disables them. This switch lives in RAM and defaults
+to off after boot. `gadget_events_post_seq()` returns the exact queued sequence
+for application logs. `sdk_token_console_register_handler()` registers additional
 startup line handlers; the SDK token handler runs first.
 
 ## Local time
@@ -81,7 +89,9 @@ colours become black on E1001. The API supplies rectangles with an optional
 radius, horizontal/vertical lines, proportional text, measurement, wrapped
 text with a final ellipsis, named icons, checkboxes and ink inversion.
 Text coordinates refer to the top of a line; the font carries its baseline.
-Supported text sizes are 28, 40, 60 and 96; icon sizes are 64 and 112.
+Supported text sizes are 28, 40, 60 and 96; Care Board includes the 28/40/60
+sizes used by its page. Icon sizes are 64 and 112; `epaper_cards_icon_scaled()`
+resamples either source size with a row buffer.
 `epaper_cards_text_box()` returns its line count and truncation status.
 
 Publish a page with `epaper_cards_show(render, ctx)` and request updates with
@@ -112,8 +122,11 @@ En/em dashes and curly quotes are assembled from its dash and comma outlines.
 The icon inputs are `.cache/fonts/MaterialSymbolsRounded.ttf` and the adjacent
 `.codepoints` file and `MATERIAL-LICENSE` at the repository root (Apache-2.0).
 The generator chooses FILL=1, GRAD=0, optical size 48 and weight 500 by axis name.
-Extend the sorted `ICONS` list to add a symbol. The generated C arrays are const
-flash data; glyph/icon metrics retain bounding boxes and proportional advances.
+Extend the sorted `ICONS` list to add a symbol. The generated C arrays are const flash data. Masks use row-XOR differences and
+literal/zero-run encoding, with raw storage for masks that compress less well.
+`card_mask.c` reconstructs each row with a 16-byte buffer; `encoded_bytes` carries
+the stored byte count and a high-bit raw flag. Glyph/icon metrics retain bounding
+boxes and proportional advances. Care Board omits its unused 96-pixel font.
 `main/card_assets_manifest.json` records input hashes and ESP32 data sizes,
 including metadata and names; generation enforces a 160 KiB data budget.
 Full third-party licenses are in `main/card_assets_licenses/`.

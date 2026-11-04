@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <setjmp.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <sys/stat.h>
 #include "care_board.c"
 #include "nvs.h"
@@ -50,6 +51,14 @@ bool gadget_events_post(const char *source,const char *text,const cJSON *data) {
     assert(!strcmp(source,"Care Board"));posts++;snprintf(summary,sizeof(summary),"%s",text);
     const cJSON *v=cJSON_GetObjectItemCaseSensitive(data,"type");assert(cJSON_IsString(v));
     snprintf(event_type,sizeof(event_type),"%s",v->valuestring);return true;
+}
+bool gadget_events_post_seq(const char *source,const char *text,const cJSON *data,uint64_t *seq) {
+    bool ok=gadget_events_post(source,text,data);if(ok&&seq)*seq=posts;return ok;
+}
+void care_test_log(const char *tag,const char *format,...) {
+    assert(!strcmp(tag,"link.care"));char line[512];va_list args;va_start(args,format);vsnprintf(line,sizeof(line),format,args);va_end(args);
+    assert(!strstr(line,"Blood pressure pill")&&!strstr(line,"See you")&&!strstr(line,"Home at seven"));
+    printf("@care %s\n",line);
 }
 static bool direct_event(const char *text,const cJSON *data) {return gadget_events_post("Care Board",text,data);}
 static void direct_chime(bool g) {if(g)gentle++;else soft++;}
@@ -258,6 +267,8 @@ static void previews(void) {
     preview("care_day",&m,DAY+7*3600);bool changed;
     care_model_step(&m,DAY+8*3600,0,&hooks,&changed);preview("care_due",&m,DAY+8*3600);
     care_model_step(&m,DAY+8*3600+1800,0,&hooks,&changed);preview("care_missed",&m,DAY+8*3600+1800);
+    assert(care_model_key(&m,CARE_GREEN,DAY+8*3600+1980,0,10000000,&hooks));
+    preview("care_done",&m,DAY+8*3600+1980);
 }
 int main(int argc,char **argv) {
     assert(argc==2);

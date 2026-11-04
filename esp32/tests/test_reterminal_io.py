@@ -14,12 +14,13 @@
 
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 
 try:
-    from .card_test_support import ROOT, compile_host, run_host, write_rtos
+    from .card_test_support import ROOT, ENV, compile_host, run_host, write_rtos
 except ImportError:
-    from card_test_support import ROOT, compile_host, run_host, write_rtos
+    from card_test_support import ROOT, ENV, compile_host, run_host, write_rtos
 
 
 class ReterminalIO(unittest.TestCase):
@@ -28,6 +29,7 @@ class ReterminalIO(unittest.TestCase):
             out = Path(tmp)
             write_rtos(out)
             headers = {
+                "freertos/semphr.h": '#include_next "freertos/semphr.h"\nvoid vSemaphoreDelete(SemaphoreHandle_t);\n',
                 "esp_err.h": """#pragma once
 typedef int esp_err_t;
 #define ESP_OK 0
@@ -110,8 +112,10 @@ esp_err_t i2c_del_master_bus(i2c_master_bus_handle_t);
             p = out / "freertos/task.h"
             p.write_text(p.read_text() + '\nvoid vTaskNotifyGiveFromISR(TaskHandle_t,BaseType_t *);\n')
             binary = compile_host(out, [ROOT / "tests/reterminal_io_harness.c", ROOT / "main/reterminal_io.c", ROOT / "main/button.c", ROOT / "main/reterminal_sht4x.c"], json=True, flags=["-include", str(out / "sdkconfig.h")])
-            result = run_host(binary)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for order in ("sensor_first", "rtc_first", "bus_retry"):
+                with self.subTest(order=order):
+                    result = subprocess.run([str(binary), order],text=True,capture_output=True,env=ENV)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

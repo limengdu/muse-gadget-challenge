@@ -30,7 +30,9 @@ E1001、E1002 的配置已启用 `HOMEHUB_GADGET_EVENTS`、`HOMEHUB_GADGET_CLOCK
 内部内存。PSRAM 分配失败时，事件初始化返回失败。
 
 后台任务逐条发送：先订阅 `/chat/subscribe`，再向 `/chat/stream` 发 JSON，使用
-发送确认中的消息编号关联回复。最近一轮回复最多保留 600 字节的完整 UTF-8 字符，
+发送确认和同编号的 `message.user` 回声确定用户消息及会话；按开始顺序拼接该会话中
+回声之后开始的助手消息。所有已开始消息结束、且安静三秒后，本轮完成。最多跟踪八条
+助手消息，超过该上限时持续排空至超时。最近一轮回复最多保留 600 字节的完整 UTF-8 字符，
 通过 `gadget_events_reply()` 读取。尚未提交的请求按 1～30 秒逐步延长间隔重试；
 已提交的消息最多等 90 秒接收回复，回复不可用时记录结果并继续处理下一条事件。
 
@@ -43,6 +45,9 @@ E1001、E1002 的配置已启用 `HOMEHUB_GADGET_EVENTS`、`HOMEHUB_GADGET_CLOCK
 Link 控制台输入 `>event=Ready for school` 可发送来源为 `console` 的事件。
 进度以 `@event` JSON 输出，状态为 `queued`、`sent`、`reply` 或 `error`；`reply` 的
 `text` 字段包含回复。回复正文走该控制台路径。
+`>event.debug=1` 开启仅含元数据的 `@event.row` / `@event.request` 诊断，包含数据行大小、
+键名、事件分类和字符串编号；`>event.debug=0` 关闭。开关仅保存在 RAM，启动时默认关闭。
+`gadget_events_post_seq()` 返回本次入队的准确序号，供应用日志使用。
 `sdk_token_console_register_handler()` 在启动期间注册其他行处理器，SDK token
 处理器优先执行。
 
@@ -67,7 +72,8 @@ Muse 通过 `clock.set` 传入这两个整数参数，独立后台任务完成�
 E1002 为高半字节优先的 4 位墨色编号 0、1、2、3、5、6。
 E1001 将所有非白颜色显示为黑色。接口提供可带圆角的矩形、横竖线、比例字体、文字测量、
 自动换行与末行省略号、按名称查找的图标、勾选框和墨色反转。
-文本坐标以行顶端为准，字体自带基线。文字尺寸为 28、40、60、96，图标尺寸为 64、112。
+文本坐标以行顶端为准，字体自带基线。文字尺寸为 28、40、60、96；Care Board 编入
+其页面使用的 28/40/60。图标尺寸为 64、112，`epaper_cards_icon_scaled()` 使用行缓冲区缩放。
 `epaper_cards_text_box()` 返回行数及截断状态。
 
 调用 `epaper_cards_show(render, ctx)` 发布页面，调用
@@ -79,6 +85,10 @@ E1001 将所有非白颜色显示为黑色。接口提供可带圆角的矩形�
 面板锁使卡片、图片、状态刷新串行进行。显示卡片或图片时保留状态变化，待返回状态页后显示。
 `display.draw_url`、`display.draw_file` 和 `display.show_animation` 通过现有路径替换卡片。
 关闭卡片选项时使用原有状态和图片实现。
+
+图案在 flash 中按相邻行异或后的差分和字节段/零游程保存，压缩较小时保留原始格式。
+`card_mask.c` 用 16 字节缓冲逐行恢复；`encoded_bytes` 的低位表示保存长度，高位表示
+原始格式。字形边界、字距及最终像素保持一致；Care Board 省去未使用的 96 像素字体。
 
 ## 资源与主机预览
 

@@ -64,7 +64,8 @@ limitations under the License.
 6. 打开本项目的 [`SKILL.md`](SKILL.md)，把完整内容粘贴给家人的 Muse，并指定这台 E1001。
    首次使用时告诉 Muse 父母称呼、接收信息的家人及父母所在地时区；Muse 会设置 UTC 和时差。
 
-E1001 的配置已启用本项目及共享基础，生成设置位于 `build-reterminal-e1001/`。
+E1001 的配置已启用本项目及共享基础，采用体积优先编译和压缩卡片资源，使用固定应用分区。
+生成设置位于 `build-reterminal-e1001/`。
 固件、命令和技能均来自本仓库。已配置设备升级时保留原有配对。
 
 ## 可以怎样告诉 Muse
@@ -128,7 +129,8 @@ Muse 会及时转达漏确认和回电请求，并建议直接打电话联系。
 - 界面和字体支持英文/ASCII，以及 `° • – — ’ “ ” …`。
   父母称呼最多 31 字节，家人/留言人 39，标题 55；每条留言 191 字节、最多三条；
   提醒 ID 最多 31 个字母、数字、`_`、`-`，标签 63 字节、最多八条。
-  屏幕显示最新留言和最多四行提醒。
+  屏幕显示最新留言和最多四行提醒；两行留言时显示三行提醒。黑底日期栏、NEW/MISSED
+  反白标记和 42 像素勾选框便于远处辨认；已完成行省去实心图标，显示勾号和本地确认时间。
 - 天气由 Muse 提供，温度使用摄氏度；天气文字最多 87 字节。
   图标名见 [`gen_card_assets.py`](../../esp32/tools/gen_card_assets.py)。
 - 事件送达需要 Wi-Fi 和 Muse 会话。待发事件暂存在内存中，`events.poll` 可补查本次开机
@@ -147,7 +149,15 @@ python3 -m unittest tests.test_care_board tests.test_reterminal_io
 CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_care_board
 ```
 
-预览命令生成 `care_day.pgm`、`care_due.pgm` 和 `care_missed.pgm`。
+预览命令生成 `care_day.pgm`、`care_due.pgm`、`care_missed.pgm` 和 `care_done.pgm`。
 主机检查覆盖提醒调度、命令校验、保存恢复、排版、按键权限、长按复位兼容、
-指示灯/蜂鸣节拍和 RTC 总线共享。板卡编译、实际声音和刷新时间、RTC 断电走时及
-Muse 真实收发通过设备验证。
+指示灯/蜂鸣节拍和 RTC 总线共享。
+
+一台 E1001 在版本 `4623eb6` 上已验证：Muse 更新显示时钟、天气、留言和测试提醒；
+到点响铃、高亮并向 Muse 发事件；两分钟未确认后发送漏确认事件；绿色键确认后显示勾号、
+页脚提示并向 Muse 发确认事件。本次回复匹配、总线初始化、资源压缩、体积优化和新版页面
+已有主机检查，仍待设备复验；RTC 备用供电与两枚白键也待实机验证。
+
+`link.care` 日志记录提醒编号和状态变化、按键结果、事件类型与序号，以及带时间的重绘请求。
+Link 控制台的 `>event.debug=1` 开启请求/数据行元数据诊断，`>event.debug=0` 结束诊断；
+开关仅保存在内存中，每次启动默认关闭。

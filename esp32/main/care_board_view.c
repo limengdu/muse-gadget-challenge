@@ -19,66 +19,15 @@
 #include <string.h>
 #include <time.h>
 
-// Samples a 64-pixel source icon into a 28-pixel reminder-row mask.
-// 将 64 像素源图标采样成提醒行使用的 28 像素图案。
-static void small_icon(epaper_cards_canvas_t *c, int x, int y, const char *name) {
-    const card_icon_t *icon = card_icon_find(name, 64);
-    if (!icon) return;
-    int stride = (icon->width + 7) / 8;
-    for (int row = 0; row < 28; row++) for (int col = 0; col < 28; col++) {
-        int sx = col * 64 / 28 - icon->x_offset, sy = row * 64 / 28 - icon->y_offset;
-        if (sx >= 0 && sy >= 0 && sx < icon->width && sy < icon->height
-            && (icon->bitmap[sy * stride + sx / 8] & (0x80 >> (sx % 8)))) epaper_cards_pixel(c, x + col, y + row, CARD_BLACK);
-    }
-}
-
-static void box(epaper_cards_canvas_t *c, int x, int y, int w, int h, const char *s, int size, int lines) {
+static void box(epaper_cards_canvas_t *c, int x, int y, int w, const char *text,
+                 int size, card_color_t color) {
     const card_font_t *font = card_font_find(size);
-    if (font && h < font->line_height * lines) h = font->line_height * lines;
-    epaper_cards_text_box(c, x, y, w, h, s, size, CARD_BLACK, lines);
+    epaper_cards_text_box(c, x, y, w, font->line_height, text, size, color, 1);
 }
 
-void care_model_render(epaper_cards_canvas_t *c, const care_model_t *m, int64_t now,
-                        int offset, bool sensor_valid, double temp, double humidity) {
-    epaper_cards_clear(c, CARD_WHITE);
-    char line[160], at[6]; struct tm t; time_t local = (time_t)(now + offset * 60LL);
-    if (now >= 1704067200LL && gmtime_r(&local, &t)) strftime(line, sizeof(line), "%a %d %b", &t);
-    else strcpy(line, "Set the clock with Muse");
-    box(c, 18, 4, 520, 49, line, 40, 1);
-    snprintf(line, sizeof(line), "%s - %s", m->person, m->title[0] ? m->title : "Care Board");
-    box(c, 18, 56, 395, 35, line, 28, 1);
-    if (m->weather_set) {
-        epaper_cards_icon(c, 554, 0, m->weather_icon, 64, CARD_BLACK);
-        snprintf(line, sizeof(line), "%.0f\xC2\xB0" "C", m->weather_temp);
-        box(c, 637, 5, 152, 49, line, 40, 1);
-        box(c, 18, 94, 764, 35, m->weather_text, 28, 1);
-    }
-    if (sensor_valid) snprintf(line, sizeof(line), "Inside %.1f\xC2\xB0" "C  %.0f%%", temp, humidity);
-    else strcpy(line, "Inside --\xC2\xB0" "C  --%");
-    box(c, 425, 61, 362, 35, line, 28, 1);
-    epaper_cards_hline(c, 16, 130, 768, CARD_BLACK);
-    int active = care_model_oldest(m);
-    if (active >= 0) {
-        const care_reminder_t *q = &m->reminders[active];
-        box(c, 20, 132, 600, 35, q->status == CARE_MISSED ? "Please confirm" : "Time for", 28, 1);
-        int size = epaper_cards_measure(q->label, 96) <= 606 ? 96
-            : epaper_cards_measure(q->label, 60) <= 606 ? 60 : 40;
-        box(c, 20, size == 96 ? 148 : 168, 606, size == 96 ? 119 : 99, q->label, size, size == 40 ? 2 : 1);
-        epaper_cards_icon(c, 655, 143, q->icon, 112, CARD_BLACK);
-    } else if (m->message_count) {
-        const care_message_t *msg = &m->messages[0];
-        care_model_time(msg->time, offset, at);
-        snprintf(line, sizeof(line), "From %s \xE2\x80\xA2 %s", msg->from, at);
-        box(c, 20, 136, 656, 35, line, 28, 1);
-        if (!msg->read) { epaper_cards_rect(c, 694, 138, 90, 32, 3, false, CARD_BLACK); box(c, 704, 136, 75, 35, "NEW", 28, 1); }
-        int size = epaper_cards_measure(msg->text, 60) <= 756 ? 60 : 40;
-        box(c, 20, 174, 756, 99, msg->text, size, size == 60 ? 1 : 2);
-    } else {
-        box(c, 22, 156, 730, 99, "Your family's messages will appear here.", 40, 2);
-    }
-    // Prioritizes active reminders, then the remaining entries in time order.
-    // 优先排列待确认提醒，再将其他条目按时间排列。
-    unsigned order[CARE_REMINDERS];
+// Prioritizes active reminders, then orders the remaining rows by local time.
+// 优先排列待确认提醒，再将其余条目按本地时间排序。
+static void reminder_order(const care_model_t *m, unsigned order[CARE_REMINDERS]) {
     for (unsigned i = 0; i < m->reminder_count; i++) order[i] = i;
     for (unsigned i = 1; i < m->reminder_count; i++) {
         unsigned index = order[i], j = i;
@@ -91,19 +40,90 @@ void care_model_render(epaper_cards_canvas_t *c, const care_model_t *m, int64_t 
         }
         order[j] = index;
     }
-    for (unsigned i = 0; i < m->reminder_count && i < 4; i++) {
-        const care_reminder_t *q = &m->reminders[order[i]]; int y = 273 + (int)i * 32;
-        box(c, 18, y - 4, 99, 35, q->time, 28, 1); small_icon(c, 122, y, q->icon);
-        box(c, 163, y - 4, q->status == CARE_MISSED ? 440 : 566, 35, q->label, 28, 1);
-        if (q->status == CARE_MISSED) box(c, 611, y - 4, 130, 35, "MISSED", 28, 1);
-        epaper_cards_checkbox(c, 754, y + 2, 26, q->status == CARE_DONE, CARD_BLACK);
-        if (q->status == CARE_DUE) epaper_cards_invert(c, 12, y - 1, 776, 32);
+}
+
+static void reminder_row(epaper_cards_canvas_t *c, const care_reminder_t *q, int y, int offset) {
+    bool done = q->status == CARE_DONE;
+    int label_x = done ? 134 : 184;
+    int label_width = done ? 462 : q->status == CARE_MISSED ? 404 : 546;
+    box(c, 20, y + 6, 102, q->time, 28, CARD_BLACK);
+    if (!done) epaper_cards_icon_scaled(c, 130, y + 5, q->icon, 64, 40, CARD_BLACK);
+    int size = epaper_cards_measure(q->label, 40) <= label_width ? 40 : 28;
+    box(c, label_x, y + (size == 40 ? -1 : 6), label_width, q->label, size, CARD_BLACK);
+    if (done) {
+        char at[6]; care_model_time(q->done_at, offset, at);
+        epaper_cards_checkbox(c, 616, y + 4, 42, true, CARD_BLACK);
+        box(c, 674, y + 6, 110, at, 28, CARD_BLACK);
+    } else {
+        if (q->status == CARE_MISSED) {
+            epaper_cards_rect(c, 600, y + 9, 126, 32, 6, true, CARD_BLACK);
+            box(c, 600 + (126 - epaper_cards_measure("MISSED", 28)) / 2, y + 7, 126, "MISSED", 28, CARD_WHITE);
+        }
+        epaper_cards_checkbox(c, 742, y + 4, 42, false, CARD_BLACK);
     }
-    epaper_cards_hline(c, 16, 402, 768, CARD_BLACK);
-    int x = 18;
-    if (m->footer_check) { small_icon(c, 18, 408, "check_circle"); x = 55; }
-    box(c, x, 404, 557 - x, 35, m->footer, 28, 1);
+    if (q->status == CARE_DUE) epaper_cards_invert(c, 12, y, 776, 50);
+    else epaper_cards_hline(c, 16, y + 49, 768, CARD_BLACK);
+}
+
+void care_model_render(epaper_cards_canvas_t *c, const care_model_t *m, int64_t now,
+                        int offset, bool sensor_valid, double temp, double humidity) {
+    epaper_cards_clear(c, CARD_WHITE);
+    epaper_cards_rect(c, 0, 0, 800, 64, 0, true, CARD_BLACK);
+    char line[160], at[6]; struct tm t; time_t local = (time_t)(now + offset * 60LL);
+    if (now >= 1704067200LL && gmtime_r(&local, &t)) strftime(line, sizeof(line), "%A %d %b", &t);
+    else strcpy(line, "Set the clock with Muse");
+    box(c, 20, 6, 529, line, 40, CARD_WHITE);
+    if (m->weather_set) {
+        epaper_cards_icon(c, 560, 0, m->weather_icon, 64, CARD_WHITE);
+        snprintf(line, sizeof(line), "%.0f\xC2\xB0" "C", m->weather_temp);
+        box(c, 638, 6, 150, line, 40, CARD_WHITE);
+    }
+    snprintf(line, sizeof(line), "For %s", m->person);
+    box(c, 20, 66, 385, line, 28, CARD_BLACK);
+    if (sensor_valid) snprintf(line, sizeof(line), "Inside %.1f\xC2\xB0" "C  %.0f%%", temp, humidity);
+    else strcpy(line, "Inside --\xC2\xB0" "C  --%");
+    int inside_x = 784 - epaper_cards_measure(line, 28);
+    if (inside_x < 416) inside_x = 416;
+    box(c, inside_x, 66, 784 - inside_x, line, 28, CARD_BLACK);
+    epaper_cards_hline(c, 16, 104, 768, CARD_BLACK);
+
+    int active = care_model_oldest(m);
+    bool two_lines = active < 0 && m->message_count && epaper_cards_measure(m->messages[0].text, 40) > 764;
+    if (active >= 0) {
+        const care_reminder_t *q = &m->reminders[active];
+        box(c, 20, 104, 606, q->status == CARE_MISSED ? "Please confirm" : "Time for", 28, CARD_BLACK);
+        int size = epaper_cards_measure(q->label, 60) <= 606 ? 60 : 40;
+        box(c, 20, size == 60 ? 128 : 141, 606, q->label, size, CARD_BLACK);
+        epaper_cards_icon_scaled(c, 665, 110, q->icon, 112, 96, CARD_BLACK);
+    } else if (m->message_count) {
+        const care_message_t *msg = &m->messages[0];
+        care_model_time(msg->time, offset, at);
+        snprintf(line, sizeof(line), "From %s \xE2\x80\xA2 %s", msg->from, at);
+        box(c, 20, 106, 656, line, 28, CARD_BLACK);
+        if (!msg->read) {
+            epaper_cards_rect(c, 694, 112, 90, 32, 12, true, CARD_BLACK);
+            box(c, 694 + (90 - epaper_cards_measure("NEW", 28)) / 2, 109, 90, "NEW", 28, CARD_WHITE);
+        }
+        epaper_cards_text_box(c, 20, 146, 764, card_font_find(40)->line_height * (two_lines ? 2 : 1),
+            msg->text, 40, CARD_BLACK, two_lines ? 2 : 1);
+    } else box(c, 20, 140, 764, "A message from home, always close.", 40, CARD_BLACK);
+
+    unsigned order[CARE_REMINDERS]; reminder_order(m, order);
+    unsigned visible = two_lines ? 3 : 4;
+    for (unsigned i = 0; i < m->reminder_count && i < visible; i++) reminder_row(c, &m->reminders[order[i]], (two_lines ? 258 : 208) + (int)i * 50, offset);
+    epaper_cards_hline(c, 16, 408, 768, CARD_BLACK);
+    int footer_x = 20;
+    if (m->footer_check) { epaper_cards_icon_scaled(c, 18, 415, "check_circle", 64, 28, CARD_BLACK); footer_x = 55; }
+    const char *footer = m->weather_set && !strcmp(m->footer, "Ready for your family's messages") ? m->weather_text : m->footer;
+    box(c, footer_x, 407, 547 - footer_x, footer, 28, CARD_BLACK);
     care_model_time(m->updated_at, offset, at);
-    snprintf(line, sizeof(line), "Updated %s", at); box(c, 560, 404, 227, 35, line, 28, 1);
-    box(c, 18, 441, 770, 35, "GREEN Done \xE2\x80\xA2 LEFT I'm OK \xE2\x80\xA2 RIGHT Call me", 28, 1);
+    snprintf(line, sizeof(line), "Updated %s", at); box(c, 560, 407, 228, line, 28, CARD_BLACK);
+    // The key hints use the Green, Left, Right naming order.
+    // 按键提示采用 Green、Left、Right 的命名顺序。
+    const char *hints[] = {"GREEN Done", "LEFT I'm OK", "RIGHT Call me"};
+    for (int i = 0; i < 3; i++) {
+        int x = 16 + i * 260;
+        epaper_cards_rect(c, x, 447, 248, 32, 5, false, CARD_BLACK);
+        box(c, x + (248 - epaper_cards_measure(hints[i], 28)) / 2, 444, 238, hints[i], 28, CARD_BLACK);
+    }
 }

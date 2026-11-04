@@ -108,7 +108,7 @@ if(CONFIG_HOMEHUB_GADGET_CLOCK)
     list(APPEND GADGET_SRCS "gadget_clock.c")
 endif()
 if(CONFIG_HOMEHUB_EPAPER_CARDS)
-    list(APPEND GADGET_SRCS "epaper_cards.c" "card_fonts.c" "card_icons.c")
+    list(APPEND GADGET_SRCS "epaper_cards.c" "card_mask.c" "card_fonts.c" "card_icons.c")
 endif()
 
 if(CONFIG_MUSE_ENABLED)

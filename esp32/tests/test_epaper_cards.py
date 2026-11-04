@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import json
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
@@ -28,7 +30,7 @@ class EpaperCards(unittest.TestCase):
     def test_native_page_and_assets(self):
         with tempfile.TemporaryDirectory() as tmp:
             sources = [ROOT / "tests/epaper_cards_harness.c"] + [
-                ROOT / "main" / name for name in ("epaper_cards.c", "card_fonts.c", "card_icons.c")]
+                ROOT / "main" / name for name in ("epaper_cards.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
             binary = compile_host(Path(tmp), sources)
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -37,6 +39,23 @@ class EpaperCards(unittest.TestCase):
                 p = Path(os.environ["CARD_PREVIEW_DIR"])
                 for name, magic in (("e1001_sample.pgm", b"P5"), ("e1002_sample.ppm", b"P6")):
                     self.assertTrue((p / name).read_bytes().startswith(magic))
+                    reference = json.loads((ROOT / "tests/card_assets_reference.json").read_text())
+                    self.assertEqual(hashlib.sha256((p / name).read_bytes()).hexdigest(), reference["previews"][name])
+
+    def test_lossless_decode_and_malformed_streams(self):
+        reference = json.loads((ROOT / "tests/card_assets_reference.json").read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            sources = [ROOT / "tests/card_masks_harness.c"] + [ROOT / "main" / name
+                for name in ("card_mask.c", "card_fonts.c", "card_icons.c")]
+            binary = compile_host(Path(tmp), sources)
+            for kind in ("fonts", "icons"):
+                result = subprocess.run([str(binary), kind], capture_output=True, env=ENV)
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+                self.assertEqual(hashlib.sha256(result.stdout).hexdigest(), reference[kind + "_sha256"])
+            care_binary = compile_host(Path(tmp), sources, flags=["-DCONFIG_HOMEHUB_CARE_BOARD=1"])
+            result = subprocess.run([str(care_binary), "fonts"], capture_output=True, env=ENV)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            self.assertEqual(hashlib.sha256(result.stdout).hexdigest(), reference["care_fonts_sha256"])
 
     def test_app_page_refresh_and_replacement(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -52,7 +71,7 @@ class EpaperCards(unittest.TestCase):
                                          '#define ESP_LOGE(tag, ...) ((void)(tag))\n')
 
             sources = [ROOT / "tests/epaper_cards_status_harness.c"] + [
-                ROOT / "main" / name for name in ("epaper_cards.c", "card_fonts.c", "card_icons.c")]
+                ROOT / "main" / name for name in ("epaper_cards.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
             binary = compile_host(out, sources, flags=["-I", str(ROOT / "avatar")])
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -60,7 +79,7 @@ class EpaperCards(unittest.TestCase):
     def test_assets_are_conditional(self):
         cmake = (ROOT / "main/CMakeLists.txt").read_text()
         block = cmake.split("if(CONFIG_HOMEHUB_EPAPER_CARDS)", 1)[1].split("endif()", 1)[0]
-        for source in ("epaper_cards.c", "card_fonts.c", "card_icons.c"):
+        for source in ("epaper_cards.c", "card_mask.c", "card_fonts.c", "card_icons.c"):
             self.assertIn(source, block)
         kconfig = (ROOT / "main/Kconfig.projbuild").read_text()
         block = kconfig.split("config HOMEHUB_EPAPER_CARDS\n", 1)[1].split("config ", 1)[0]

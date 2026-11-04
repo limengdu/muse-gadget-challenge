@@ -69,7 +69,8 @@ The care actions become available after setup, while pairing confirmation is idl
    Muse chat. Ask Muse to use it with this E1001. For first use, give the parent's
    name, the family contact and the local time zone; Muse sets UTC and the offset.
 
-The E1001 overlay enables Care Board and its shared foundations. Build settings
+The E1001 overlay enables Care Board and its shared foundations, uses size optimization
+and compressed card masks in the fixed app slot. Build settings
 live in `build-reterminal-e1001/`. The same checkout supplies the firmware,
 commands and skill. An already provisioned board retains its pairing during updates.
 
@@ -143,7 +144,10 @@ Muse can refresh the offset after daylight saving changes.
 - The UI and font support English/ASCII plus `° • – — ’ “ ” …`.
   Names: person 31 bytes, family/from 39, title 55. Messages: 191 bytes each,
   at most three. Reminder IDs: 31 letters/digits/`_`/`-`; labels: 63 bytes,
-  at most eight reminders. The screen shows four reminder rows and the newest message.
+  at most eight reminders. The page shows the newest message and up to four reminder rows. A two-line
+  message leaves space for three rows. The black date band, inverted NEW/MISSED
+  tags and 42-pixel checkboxes remain clear at a distance; finished rows show
+  a check and the local confirmation time with the filled icon omitted.
 - Weather is supplied by Muse; temperature is Celsius. Weather text holds 87 bytes;
   icon names come from [`gen_card_assets.py`](../../esp32/tools/gen_card_assets.py).
 - Wi-Fi and a live Muse session deliver events. Queued events live in RAM;
@@ -165,8 +169,18 @@ python3 -m unittest tests.test_care_board tests.test_reterminal_io
 CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_care_board
 ```
 
-The preview command writes `care_day.pgm`, `care_due.pgm` and `care_missed.pgm`.
+The preview command writes `care_day.pgm`, `care_due.pgm`, `care_missed.pgm` and
+`care_done.pgm`.
 Host checks exercise scheduling, command validation, persistence, rendering,
 key gating, reset compatibility, LED/buzzer timing and shared RTC I2C access.
-Board builds, physical sound/display timing, RTC backup and live Muse delivery
-are separate device checks.
+On one E1001 running revision `4623eb6`, Muse updates displayed clock, weather,
+message and a test reminder. The due beep/highlight and Muse event, a missed event
+with a two-minute interval, and a Green confirmation with check/footer/Muse event
+were verified. The current reply matching, bus initialization, compressed assets,
+size optimization and page presentation have host coverage and await device checks.
+RTC backup and both white keys also await device checks.
+
+`link.care` logs report reminder IDs/status changes, key action results, event
+types/sequences and redraw requests with timestamps. Link console diagnostics can
+be enabled with `>event.debug=1` and ended with `>event.debug=0`; they report
+request/row metadata, remain in RAM and start disabled after boot.

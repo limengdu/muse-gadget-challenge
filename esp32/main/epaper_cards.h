@@ -62,6 +62,8 @@ epaper_cards_text_result_t epaper_cards_text_box(epaper_cards_canvas_t *canvas,
     card_color_t color, int max_lines);
 bool epaper_cards_icon(epaper_cards_canvas_t *canvas, int x, int y,
                        const char *name, int size, card_color_t color);
+bool epaper_cards_icon_scaled(epaper_cards_canvas_t *canvas, int x, int y,
+                              const char *name, int source_size, int size, card_color_t color);
 void epaper_cards_checkbox(epaper_cards_canvas_t *canvas, int x, int y, int size,
                            bool checked, card_color_t color);
 // Inverts the six inks in pairs: black/white, yellow/blue and red/green.

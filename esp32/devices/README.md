@@ -91,9 +91,12 @@ are documented separately; this is not a generic ESP-VoCat profile.
 | Buttons | BOOT | BOOT | BOOT | BOOT | Top | BOOT | Green; Left/Right enabled for Care Board | Green | AI (talk/setup); Up/Down wake | Centre (talk), dial | XIAO BOOT (talk/setup) | PWR (talk), BOOT | BOOT (talk), PWR | Hold face (talk), BOOT | BOOT, PWR (talk), KEY (talk) on top | Two | BOOT (talk), PWR | BOOT (talk), PWR | Wheel (press to talk, turn to sleep) | Front (talk), side (menu), PWR | Front (talk), side (menu), PWR | GO/Space (talk), Esc/Enter/arrows (menu) | BOOT/CONFIG (talk) | Blue top-right (talk), yellow top-left (speaker), red bottom-left (power) | USR1 (talk/setup), USR2 (screen) | ENTER (talk), BACK (menu), XIAO BOOT | ENTER (talk), BACK (menu), XIAO BOOT | ENTER (talk), BACK (menu), XIAO BOOT | PWR (talk), RST | Touch BtnB (talk), PWR | BOOT (talk) | BOOT | BOOT (talk) | BOOT (talk), Vol+/Vol- (menu) | BOOT (flash only) | Screen only | OK (talk), UP/DOWN (menu) | Touch; bottom power button |
 
 E1001 Care Board enables the two white keys, green alert LED, buzzer and PCF8563
-RTC alongside its retained e-paper page. Scheduling, persistence, rendering and
-I/O paths have host coverage; sound, key timing, RTC backup and live Muse delivery
-await device checks. See the [project guide](../../projects/care-board/README.md).
+RTC alongside its retained e-paper page. On one E1001 at revision `4623eb6`, Muse
+updates, due beep/highlight/events, a two-minute missed event and Green confirmation
+with a checked row/footer/event were verified. The current reply matching, bus
+initialization, compressed assets and page presentation have host coverage and await
+device checks, as do RTC backup and the white keys. See the
+[project guide](../../projects/care-board/README.md).
 
 *Sticky entries describe an experimental Muse port, not Seeed's factory
 firmware. On one unit the display, touch, voice notes/CJK replies, SHT40,

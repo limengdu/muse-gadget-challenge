@@ -27,15 +27,23 @@
 #include "driver/ledc.h"
 #include "freertos/task.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 static TaskFunction_t io_task, button_task;
 static int64_t now, until, press_at, release_at;
 static bool allowed=true, white_mode;
 static unsigned green, left, right, short_presses, doubles, holds, forever_waits, buzzer_on, buzzer_off, led_writes, buses;
 static int led_level;
+static bool bus_fail, bus_locked;
+static unsigned rtc_devices, sensor_devices;
 static jmp_buf done;
 static uint8_t rtc_bytes[9];
 int64_t esp_timer_get_time(void) {return now;}
+SemaphoreHandle_t xSemaphoreCreateMutex(void) {return (void *)1;}
+BaseType_t xSemaphoreTake(SemaphoreHandle_t mutex,TickType_t wait) {(void)wait;assert(mutex&&!bus_locked);bus_locked=true;return pdTRUE;}
+BaseType_t xSemaphoreGive(SemaphoreHandle_t mutex) {assert(mutex&&bus_locked);bus_locked=false;return pdTRUE;}
+void vSemaphoreDelete(SemaphoreHandle_t mutex) {assert(mutex);}
+
 BaseType_t xTaskCreate(TaskFunction_t fn,const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *out) {
     (void)stack;(void)arg;(void)priority;
     if(!strcmp(name,"btn"))button_task=fn;else if(!strcmp(name,"reterminal_io"))io_task=fn;else if(strcmp(name,"sht4x"))assert(false);
@@ -68,15 +76,15 @@ esp_err_t ledc_timer_config(const ledc_timer_config_t *cfg) {assert(cfg->freq_hz
 esp_err_t ledc_channel_config(const ledc_channel_config_t *cfg) {assert(cfg->gpio_num==45 && cfg->duty==0);return ESP_OK;}
 esp_err_t ledc_set_duty(int mode,int channel,unsigned duty) {(void)mode;assert(channel==0);if(duty){assert(duty==512);buzzer_on++;}else buzzer_off++;return ESP_OK;}
 esp_err_t ledc_update_duty(int mode,int channel) {(void)mode;(void)channel;return ESP_OK;}
-esp_err_t i2c_master_get_bus_handle(int port,i2c_master_bus_handle_t *out) {(void)out;assert(port==0);return ESP_ERR_NOT_FOUND;}
+esp_err_t i2c_master_get_bus_handle(int port,i2c_master_bus_handle_t *out) {(void)out;(void)port;assert(false);return ESP_ERR_NOT_FOUND;}
 esp_err_t i2c_new_master_bus(const i2c_master_bus_config_t *cfg,i2c_master_bus_handle_t *out) {
-    assert(cfg->i2c_port==0 && cfg->sda_io_num==19 && cfg->scl_io_num==20);*out=(void *)16;buses++;return ESP_OK;
+    assert(bus_locked && !buses && cfg->i2c_port==0 && cfg->sda_io_num==19 && cfg->scl_io_num==20);if(bus_fail){bus_fail=false;return ESP_FAIL;}*out=(void *)16;buses++;return ESP_OK;
 }
 esp_err_t i2c_master_bus_add_device(i2c_master_bus_handle_t bus,const i2c_device_config_t *cfg,i2c_master_dev_handle_t *out) {
-    assert(bus==(void *)16 && (cfg->device_address==0x51 || cfg->device_address==0x44) && cfg->scl_speed_hz==100000);*out=cfg->device_address==0x51?(void *)17:(void *)18;return ESP_OK;
+    assert(buses==1 && bus==(void *)16 && (cfg->device_address==0x51 || cfg->device_address==0x44) && cfg->scl_speed_hz==100000);if(cfg->device_address==0x51){assert(bus_locked);rtc_devices++;}else sensor_devices++;*out=cfg->device_address==0x51?(void *)17:(void *)18;return ESP_OK;
 }
 esp_err_t i2c_master_transmit_receive(i2c_master_dev_handle_t dev,const uint8_t *write,size_t nw,uint8_t *read,size_t nr,int wait) {
-    assert(dev==(void *)17 && nw==1 && write[0]==0 && nr==9 && wait==100);memcpy(read,rtc_bytes,9);return ESP_OK;
+    assert(buses==1 && rtc_devices==1 && dev==(void *)17 && nw==1 && write[0]==0 && nr==9 && wait==100);memcpy(read,rtc_bytes,9);return ESP_OK;
 }
 esp_err_t i2c_master_transmit(i2c_master_dev_handle_t dev,const uint8_t *bytes,size_t n,int wait) {
     assert(dev==(void *)17 && wait==100 && bytes[0]+n-1<=9);
@@ -91,10 +99,14 @@ static void tap(void) {short_presses++;}
 static void twice(void) {doubles++;}
 static void hold(void) {holds++;}
 static void run(TaskFunction_t fn,int64_t stop) {until=stop;if(!setjmp(done))fn(NULL);}
-int main(void) {
+int main(int argc,char **argv) {
+    bool sensor_first=argc>1&&!strcmp(argv[1],"sensor_first");
+    if(sensor_first)reterminal_sht4x_init();
+    else if(argc>1&&!strcmp(argv[1],"rtc_first")){int64_t epoch;assert(!reterminal_io_rtc_read(&epoch));assert(buses==1&&rtc_devices==1);}
+    else {i2c_master_bus_handle_t bus;bus_fail=true;assert(!reterminal_io_i2c_bus(&bus));assert(!buses);}
     assert(button_init(tap,twice,hold));assert(reterminal_io_init(ready,key));
     assert(io_task&&button_task&&led_level==1);
-    reterminal_sht4x_init();assert(buses==1);
+    if(!sensor_first)reterminal_sht4x_init();assert(buses==1&&rtc_devices==1&&sensor_devices==1);
     i2c_master_bus_handle_t a,b;assert(reterminal_io_i2c_bus(&a)&&reterminal_io_i2c_bus(&b)&&a==b&&buses==1);
     assert(reterminal_io_rtc_write(1730678400LL));int64_t epoch;assert(reterminal_io_rtc_read(&epoch)&&epoch==1730678400LL);
     now=0;press_at=0;release_at=150000;run(button_task,800000);assert(green==1&&!short_presses&&!holds);

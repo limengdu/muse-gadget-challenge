@@ -42,7 +42,7 @@ unsigned uxQueueMessagesWaiting(QueueHandle_t);
 """,
             "driver/i2c_master.h": "typedef void *i2c_master_bus_handle_t;\n",
             "nvs.h": '#include_next "nvs.h"\nesp_err_t nvs_set_blob(nvs_handle_t,const char *,const void *,size_t);\nesp_err_t nvs_get_blob(nvs_handle_t,const char *,void *,size_t *);\n',
-            "esp_log.h": '#define ESP_LOGW(tag, ...) ((void)(tag))\n',
+            "esp_log.h": 'void care_test_log(const char *,const char *,...);\n#define ESP_LOGI(tag, ...) care_test_log(tag, __VA_ARGS__)\n#define ESP_LOGW(tag, ...) ((void)(tag))\n',
         }
         for name, text in headers.items():
             p = out / name
@@ -52,30 +52,43 @@ unsigned uxQueueMessagesWaiting(QueueHandle_t);
         start = source.index("// ---- RTC protocol (host-tested)")
         (out / "rtc_protocol.inc").write_text(source[start:source.index("// ---- Hardware", start)])
         sources = [ROOT / "tests/care_board_harness.c"] + [ROOT / "main" / name for name in (
-            "care_model.c", "care_board_view.c", "care_store.c", "epaper_cards.c", "card_fonts.c", "card_icons.c")]
-        cls.binary = compile_host(out, sources, json=True)
+            "care_model.c", "care_board_view.c", "care_store.c", "epaper_cards.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
+        cls.binary = compile_host(out, sources, json=True, flags=["-DCONFIG_HOMEHUB_CARE_BOARD=1"])
 
     def run_case(self, case):
         result = subprocess.run([str(self.binary), case], capture_output=True, text=True, env=ENV)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result
 
     def test_validation_and_limits(self): self.run_case("validation")
     def test_reminder_deadlines_and_rollover(self): self.run_case("engine")
     def test_keys_events_and_footer(self): self.run_case("keys")
     def test_nvs_round_trip(self): self.run_case("store")
     def test_rtc_calendar_and_integrity(self): self.run_case("rtc")
-    def test_async_commands_and_display(self): self.run_case("controller")
+    def test_async_commands_and_display(self):
+        result = self.run_case("controller")
+        logs = "\n".join(line for line in result.stdout.splitlines() if line.startswith("@care "))
+        for fragment in ("reminder id=pill status=pending->due", "status=due->done", "event type=due seq=1",
+                         "key=0 action=ack id=pill accepted=1", "redraw request reason=key"):
+            self.assertIn(fragment, logs)
+        for private in ("Blood pressure pill", "See you soon", "Mia", "Dad"):
+            self.assertNotIn(private, logs)
     def test_preview_pages(self):
         self.run_case("preview")
         if os.environ.get("CARD_PREVIEW_DIR"):
-            for name in ("care_day", "care_due", "care_missed"):
+            for name in ("care_day", "care_due", "care_missed", "care_done"):
                 data = (Path(os.environ["CARD_PREVIEW_DIR"]) / (name + ".pgm")).read_bytes()
                 self.assertTrue(data.startswith(b"P5\n800 480\n255\n"))
                 self.assertEqual(len(data), len(b"P5\n800 480\n255\n") + 800 * 480)
                 pixels = data[len(b"P5\n800 480\n255\n"):]
-                for x0, y0, x1, y1 in ((18, 4, 400, 90), (18, 273, 115, 301), (18, 441, 787, 477)):
+                self.assertEqual(pixels[0], 0)
+                self.assertGreater(sum(pixels[y * 800 + x] == 255 for y in range(6, 60) for x in range(20, 545)), 1000)
+                for x0, y0, x1, y1 in ((18, 70, 200, 101), (18, 258, 120, 305), (18, 447, 787, 477)):
                     ink = sum(pixels[y * 800 + x] == 0 for y in range(y0, y1) for x in range(x0, x1))
                     self.assertGreater(ink, 80)
+                if name == "care_done":
+                    self.assertGreater(sum(pixels[y * 800 + x] == 0 for y in range(262, 304) for x in range(616, 658)), 250)
+                    self.assertGreater(sum(pixels[y * 800 + x] == 0 for y in range(264, 304) for x in range(674, 784)), 100)
 
     def test_feature_gates(self):
         for file, names in (("noise_control.cpp", ("care.update", "care.state", "care.clear")),

@@ -1,0 +1,11 @@
+{
+  "copyright": "Copyright (c) 2026 limengdu",
+  "license": "Apache-2.0",
+  "fonts_sha256": "69d6d19e6a651b7a6ba877883ba7cbf0e8da40349626b536fb1509b2749dc0b0",
+  "icons_sha256": "297b92d7a083366085562583f7e73ae06f7c73cf22228c1d03e1564a2d7605a4",
+  "previews": {
+    "e1001_sample.pgm": "f4a0e8cad10f20706636e7fcd9932bea7d7e51e749dd00546cdd005b67a2b53a",
+    "e1002_sample.ppm": "d2e0b99a25fe8a6209290e163a03409096af6d0d9e4d3c66f2d41600e84acb06"
+  },
+  "care_fonts_sha256": "085a1b529c0e95238eff7803b1c24c7c31039793f38b6684495c431e4c71c873"
+}
