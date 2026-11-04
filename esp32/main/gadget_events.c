@@ -41,6 +41,7 @@
 #define ROW_MAX 12288
 #define REPLY_TIMEOUT_US (90LL * 1000000)
 #define REPLY_SETTLE_US (3LL * 1000000)
+#define SILENT_SETTLE_US (4LL * 1000000)
 #define BUSY_HOLD_US (20LL * 1000000)
 #define REPLY_MESSAGES 8
 #define REPLY_ECHOES 4
@@ -176,6 +177,13 @@ static event_t *dequeue(void) {
     return event;
 }
 
+static bool events_pending(void) {
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool pending = s_count != 0;
+    xSemaphoreGive(s_lock);
+    return pending;
+}
+
 cJSON *gadget_events_poll(uint64_t since) {
     event_t *snapshot[GADGET_EVENTS_HISTORY];
     unsigned count = 0;
@@ -277,6 +285,7 @@ typedef struct {
 typedef struct {
     char id[96], session[96];
     uint64_t row;
+    bool idle;
 } event_echo_t;
 typedef struct {
     event_candidate_t messages[REPLY_MESSAGES];
@@ -286,7 +295,7 @@ typedef struct {
     uint64_t recent_seqs[REPLY_RECENT_SEQS];
     char note_id[96], session[96], reply[GADGET_EVENTS_REPLY_BYTES];
     int64_t activity_at, content_at;
-    bool complete, overflow, agent_busy;
+    bool started, complete, overflow, agent_busy;
 } event_reply_t;
 static event_reply_t *s_stream;
 
@@ -464,6 +473,7 @@ static void collect_reply(void) {
         }
     }
     s_stream->complete = false;
+    s_stream->started = false;
     s_stream->reply[0] = 0;
     if (!s_stream->echo_row) return;
     unsigned found = 0;
@@ -478,6 +488,7 @@ static void collect_reply(void) {
             utf8_copy(s_stream->reply, sizeof(s_stream->reply), message->text, true);
         }
     }
+    s_stream->started = found != 0;
     s_stream->complete = found && done;
 }
 
@@ -489,6 +500,18 @@ static bool reply_settled(void) {
         && (!s_stream->agent_busy || now - s_stream->content_at >= BUSY_HOLD_US)
         && !pending_content(&s_rx[1]) && !s_rx[1].overflow
         && now - s_stream->activity_at >= REPLY_SETTLE_US;
+}
+
+// Settles an echo followed by idle status and quiet time without an assistant start.
+// 用户回声之后收到空闲状态，且没有助手消息开始时，在静默后收尾。
+static bool silent_settled(void) {
+    if (!s_stream->echo_row || s_stream->started || s_stream->overflow
+        || pending_content(&s_rx[1]) || s_rx[1].overflow
+        || esp_timer_get_time() - s_stream->activity_at < SILENT_SETTLE_US) return false;
+    for (unsigned i = 0; i < REPLY_ECHOES; i++) {
+        if (s_stream->echoes[i].row == s_stream->echo_row) return s_stream->echoes[i].idle;
+    }
+    return false;
 }
 
 // Remembers recent sequence values and accepts unseen values in any arrival order.
@@ -541,11 +564,22 @@ static void parse_row(const char *row, size_t length, unsigned slot) {
     // 已解析事件确定静默计时，发送确认选定后续跟踪的会话。
     bool ours = !session[0] || !strcmp(session, s_stream->session);
     if (ours || !s_stream->session[0]) s_stream->activity_at = esp_timer_get_time();
-    if (ours && (!strcmp(kind, "agent.status") || !strcmp(kind, "task.status"))) {
+    bool agent_status = !strcmp(kind, "agent.status"), task_status = !strcmp(kind, "task.status");
+    if (agent_status || task_status) {
         const char *code = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "activity_code"));
         const char *status = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "status"));
-        if (code) s_stream->agent_busy = code[0] && strcmp(code, "online") && strcmp(code, "idle");
-        else if (status) s_stream->agent_busy = status[0] && strcmp(status, "completed") && strcmp(status, "failed");
+        const char *state = agent_status ? (code ? code : status) : (status ? status : code);
+        if (state) {
+            bool idle = agent_status ? (!strcmp(state, "online") || !strcmp(state, "idle"))
+                                     : (!strcmp(state, "completed") || !strcmp(state, "failed"));
+            if (ours) s_stream->agent_busy = state[0] && !idle;
+            // Echo-local status also covers an acknowledgement arriving after idle.
+            // 每个回声保存自己的状态，也覆盖发送确认晚于空闲状态到达的情况。
+            for (unsigned i = 0; i < REPLY_ECHOES; i++) {
+                event_echo_t *echo = &s_stream->echoes[i];
+                if (echo->row && order > echo->row && (!session[0] || !strcmp(session, echo->session))) echo->idle = idle;
+            }
+        }
     }
     if (!strcmp(kind, "message.user") && id[0] && session[0]) {
         if (!s_stream->echo_row && strlen(id) < 96 && strlen(session) < 96) {
@@ -553,6 +587,7 @@ static void parse_row(const char *row, size_t length, unsigned slot) {
             utf8_copy(echo->id, sizeof(echo->id), id, false);
             utf8_copy(echo->session, sizeof(echo->session), session, false);
             echo->row = order;
+            echo->idle = false;
         }
     } else {
         bool start = !strcmp(kind, "delta.message_start");
@@ -656,8 +691,8 @@ static void close_requests(int64_t post, int64_t sub) {
     if (sub) noise_ctrl_req_cancel(sub);
 }
 
-// One turn subscribes before posting; accepted turns are drained without reposting.
-// 每轮先订阅再发送；已受理的消息持续读取回复并保持单次发送。
+// Each turn subscribes before posting; an echo releases queued posts in FIFO order.
+// 每轮先订阅再发送；收到回声后，待发事件按先入先出顺序继续发送。
 static bool send_event(event_t *event) {
     if (!noise_ctrl_is_connected()) return false;
     xSemaphoreTake(s_rx_lock, portMAX_DELAY);
@@ -689,20 +724,24 @@ static bool send_event(event_t *event) {
         return false;
     }
     int64_t deadline = esp_timer_get_time() + REPLY_TIMEOUT_US;
-    bool announced = false, replied = false;
+    bool announced = false, replied = false, delivered = false;
     int status = 0;
     char reply[GADGET_EVENTS_REPLY_BYTES] = {0};
     for (;;) {
+        bool pending = events_pending();
         xSemaphoreTake(s_rx_lock, portMAX_DELAY);
         bool ack = s_stream->note_id[0] && s_rx[0].status == 200;
         status = s_rx[0].status;
         replied = s_stream->complete;
         bool settled = reply_settled();
+        bool silent = ack && silent_settled();
+        bool next = ack && s_stream->echo_row && pending;
         bool failed = (s_rx[0].done && !ack) || (s_rx[1].done && !replied);
-        if (settled || failed || esp_timer_get_time() >= deadline) {
-            debug_state(settled ? "settled" : failed ? "failed" : "timeout");
+        if (settled || silent || next || failed || esp_timer_get_time() >= deadline) {
+            debug_state(settled ? "settled" : silent ? "silent" : next ? "next" : failed ? "failed" : "timeout");
             replied = settled;
-            utf8_copy(reply, sizeof(reply), s_stream->reply, false);
+            delivered = silent || next;
+            if (!delivered || replied) utf8_copy(reply, sizeof(reply), s_stream->reply, false);
             xSemaphoreGive(s_rx_lock);
             if (ack && !announced) progress(event, "sent", status, NULL);
             break;
@@ -716,6 +755,7 @@ static bool send_event(event_t *event) {
     utf8_copy(s_reply, sizeof(s_reply), reply, false);
     xSemaphoreGive(s_lock);
     if (replied) progress(event, "reply", status, reply);
+    else if (delivered) progress(event, "delivered", 0, NULL);
     else progress(event, "error", status, "reply unavailable or timed out; message may have been delivered");
     return true;
 }
