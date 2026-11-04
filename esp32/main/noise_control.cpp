@@ -1500,6 +1500,33 @@ static char *build_register_json(void) {
     }
 #endif
 
+#if CONFIG_HOMEHUB_CARE_BOARD
+    cJSON *care_optional = cJSON_CreateObject();
+    const char *care_names[] = {"now_epoch", "utc_offset_min", "person", "family", "title", "weather", "messages", "add_message", "reminders"};
+    const char *care_types[] = {"integer", "integer", "string", "string", "string", "object", "array", "object", "array"};
+    const char *care_descriptions[] = {
+        "UTC epoch seconds, 2024-2099; provide with utc_offset_min on first use.",
+        "Local UTC offset in minutes (-840..840), with now_epoch.",
+        "Person's name, 1-31 bytes.", "Family contact, 1-39 bytes.", "Board title, up to 55 bytes.",
+        "{text: up to 87 bytes, icon: card icon name, temp: Celsius -80..80}.",
+        "Replace up to 3 {from,text,time?,read?}; from 1-39 bytes, text 1-191; time is UTC epoch seconds, newest first.",
+        "Prepend one unread {from,text} and play a soft chime.",
+        "Replace up to 8 {id,time,label,icon?,repeat,escalate_min?}; id 1-31 letters/digits/_/-, time HH:MM, label 1-63 bytes, repeat daily|once, escalate_min 1..1440 (default 30). Same id/time retains status."
+    };
+    for (unsigned i = 0; i < sizeof(care_names) / sizeof(care_names[0]); i++) {
+        cJSON *param = cJSON_CreateObject();
+        cJSON_AddStringToObject(param, "type", care_types[i]);
+        cJSON_AddStringToObject(param, "description", care_descriptions[i]);
+        cJSON_AddItemToObject(care_optional, care_names[i], param);
+    }
+    add_command(commands, "care.update",
+        "Patch the E1001 Care Board; returns resulting state and shows the page. "
+        "English/ASCII and card punctuation text. Times already passed today start pending tomorrow, including daily reminders.",
+        nullptr, care_optional);
+    add_command(commands, "care.state",
+        "Read the full care model, reminder status/due_at/done_at, last keys/check-in, clock and indoor sensor. A key confirms a reminder; it does not prove medication was taken.", nullptr, nullptr);
+    add_command(commands, "care.clear", "Return to the status screen, retaining the care model; care.update shows it again.", nullptr, nullptr);
+#endif
 #if CONFIG_HOMEHUB_GADGET_EVENTS
     cJSON *events_optional = cJSON_CreateObject();
     cJSON *since_param = cJSON_CreateObject();

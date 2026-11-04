@@ -1,0 +1,445 @@
+{
+  "copyright": "Copyright (c) 2026 limengdu",
+  "license": "Apache-2.0",
+  "rows": [
+    {
+      "req": "sub",
+      "row": {
+        "event": "model_lock.updated",
+        "payload": {
+          "locked": null,
+          "version": null
+        },
+        "seq": 1,
+        "ts_ms": 1730678400000,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "session_id": "fixture-id-2"
+        },
+        "seq": 1000,
+        "ts_ms": 1730678400100,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 3,
+        "ts_ms": 1730678400200,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "oversized": 56323
+    },
+    {
+      "req": "post",
+      "row": {
+        "channel": "chat",
+        "is_thread": false,
+        "message_id": "fixture-id-3",
+        "reply_to_message_id": "fixture-id-3",
+        "session_id": "fixture-id-2"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 6,
+        "ts_ms": 1730678400500,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 7,
+        "ts_ms": 1730678400600,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "message.user",
+        "payload": {
+          "chat_context": null,
+          "display_text": "PRIVATE_ECHO",
+          "display_text_ready": true,
+          "display_text_updated_at_ms": null,
+          "event_name": null,
+          "is_thread": false,
+          "message_id": "fixture-id-3",
+          "occurred_at_ms": null,
+          "parent_agent_id": "fixture-id-1",
+          "payload": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "role": "user",
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "transcript_surface": null,
+          "visibility": null
+        },
+        "seq": 8,
+        "ts_ms": 1730678400700,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "message_id": "fixture-id-4",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 9,
+        "ts_ms": 1730678400800,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "message_id": "fixture-id-4",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 10,
+        "ts_ms": 1730678400900,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 11,
+        "ts_ms": 1730678401000,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "message_id": "fixture-id-4",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 12,
+        "ts_ms": 1730678401100,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 13,
+        "ts_ms": 1730678401200,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "message_id": "fixture-id-4",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 14,
+        "ts_ms": 1730678401300,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.message_start",
+        "payload": {
+          "agent_id": "fixture-id-1",
+          "chat_context": null,
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "metadata": null,
+          "parent_agent_id": "fixture-id-1",
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "transcript_surface": null
+        },
+        "seq": 15,
+        "ts_ms": 1730678401400,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "All ",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 16,
+        "ts_ms": 1730678401500,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "rea",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 17,
+        "ts_ms": 1730678401600,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "dy",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 18,
+        "ts_ms": 1730678401700,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "!",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 19,
+        "ts_ms": 1730678401800,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "message_id": "fixture-id-4",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 20,
+        "ts_ms": 1730678401900,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "agent.status",
+        "payload": {
+          "activity_code": "idle",
+          "activity_text": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "session_id": "fixture-id-2"
+        },
+        "seq": 21,
+        "ts_ms": 1730678402000,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.message_done",
+        "payload": {
+          "actions": null,
+          "agent_id": "fixture-id-1",
+          "chat_context": null,
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "transcript": null,
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 22,
+        "ts_ms": 1730678402100,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "task.status",
+        "payload": {
+          "active_subagent_count": null,
+          "agent_id": "fixture-id-1",
+          "is_thread": false,
+          "root_agent_id": "fixture-id-1",
+          "session_id": "fixture-id-2",
+          "status": "completed",
+          "task_id": "fixture-id-1"
+        },
+        "seq": 23,
+        "ts_ms": 1730678402200,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "chat.seen",
+        "payload": {
+          "message_id": "fixture-id-5",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 24,
+        "ts_ms": 1730678402300,
+        "type": "event"
+      }
+    }
+  ]
+}

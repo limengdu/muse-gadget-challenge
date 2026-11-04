@@ -13,8 +13,11 @@
 # limitations under the License.
 
 
+import hashlib
+import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
@@ -34,7 +37,7 @@ class AirGuardian(unittest.TestCase):
         cls.out = Path(cls.tmp.name)
         cls.binary = compile_host(cls.out, [ROOT / "tests/air_guardian_harness.c"] + [
             ROOT / "main" / name for name in ("air_guardian_core.c", "air_guardian_render.c",
-                                              "card_rgb565.c", "card_fonts.c", "card_icons.c")], json=True)
+                                              "card_rgb565.c", "card_mask.c", "card_fonts.c", "card_icons.c")], json=True)
 
     def check(self, case):
         result = subprocess.run([str(self.binary), case], capture_output=True, text=True, env=ENV)
@@ -58,12 +61,30 @@ class AirGuardian(unittest.TestCase):
         self.check("status")
 
     def test_native_previews(self):
-        self.check("previews")
-        if os.environ.get("CARD_PREVIEW_DIR"):
+        reference = json.loads((ROOT / "tests/card_assets_reference.json").read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(os.environ.get("CARD_PREVIEW_DIR", tmp))
+            result = subprocess.run([str(self.binary), "previews"], capture_output=True, text=True,
+                                    env={**ENV, "CARD_PREVIEW_DIR": str(directory)})
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for view in ("good", "moderate", "unhealthy", "night"):
-                path = Path(os.environ["CARD_PREVIEW_DIR"]) / f"outdoor_{view}.ppm"
-                self.assertTrue(path.read_bytes().startswith(b"P6\n480 480\n255\n"))
-                self.assertEqual(path.stat().st_size, 480 * 480 * 3 + 15)
+                path = directory / f"outdoor_{view}.ppm"
+                data = path.read_bytes()
+                self.assertTrue(data.startswith(b"P6\n480 480\n255\n"))
+                self.assertEqual(len(data), 480 * 480 * 3 + 15)
+                self.assertEqual(hashlib.sha256(data).hexdigest(), reference["previews"][path.name])
+
+    def test_rgb565_icons_match_uncompressed_reference(self):
+        reference = json.loads((ROOT / "tests/card_assets_reference.json").read_text())
+        names = re.findall(r'static const char name_\w+\[\] = "([^"]+)";',
+                           (ROOT / "main/card_icons.c").read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            sources = [ROOT / "tests/card_rgb565_harness.c"] + [ROOT / "main" / name
+                for name in ("card_rgb565.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
+            binary = compile_host(Path(tmp), sources)
+            result = subprocess.run([str(binary), *names], capture_output=True, env=ENV)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            self.assertEqual(hashlib.sha256(result.stdout).hexdigest(), reference["rgb565_icons_sha256"])
 
     def test_worker_queue_nvs_restore_and_session_reply(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,7 +100,7 @@ BaseType_t xQueueReceive(QueueHandle_t, void *, TickType_t);
 """)
             sources = [ROOT / "tests/air_guardian_runtime_harness.c"] + [
                 ROOT / "main" / name for name in ("air_guardian_core.c", "air_guardian_render.c",
-                                                  "card_rgb565.c", "card_fonts.c", "card_icons.c")]
+                                                  "card_rgb565.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
             binary = compile_host(out, sources, json=True, flags=["-DCONFIG_HOMEHUB_AIR_GUARDIAN=1"])
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

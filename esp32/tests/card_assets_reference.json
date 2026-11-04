@@ -1,0 +1,16 @@
+{
+  "copyright": "Copyright (c) 2026 limengdu",
+  "license": "Apache-2.0",
+  "fonts_sha256": "69d6d19e6a651b7a6ba877883ba7cbf0e8da40349626b536fb1509b2749dc0b0",
+  "icons_sha256": "297b92d7a083366085562583f7e73ae06f7c73cf22228c1d03e1564a2d7605a4",
+  "previews": {
+    "e1001_sample.pgm": "f4a0e8cad10f20706636e7fcd9932bea7d7e51e749dd00546cdd005b67a2b53a",
+    "e1002_sample.ppm": "d2e0b99a25fe8a6209290e163a03409096af6d0d9e4d3c66f2d41600e84acb06",
+    "outdoor_good.ppm": "f1c53af207bdb11c4a398cb827b1ce26c1ca8f31c8b972e7b727ce37f5504393",
+    "outdoor_moderate.ppm": "11cc8d11e8cf290aeb24931a1c9c0f938610fbcc4827ed894d8baa9b0fbaf3dd",
+    "outdoor_unhealthy.ppm": "cc191aee2b82f9df337866afe9a4ca67727cb34c54b09b60222bd000725f0015",
+    "outdoor_night.ppm": "aecc8dd5d0d3ee9b45a4b833ef425499b55c0c283d7f4871814e6ed09843703f"
+  },
+  "care_fonts_sha256": "085a1b529c0e95238eff7803b1c24c7c31039793f38b6684495c431e4c71c873",
+  "rgb565_icons_sha256": "870a4f3122f55a8146f355f6be309073f90ff53deacd3ee07022d67fec4c942f"
+}

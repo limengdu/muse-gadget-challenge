@@ -34,7 +34,25 @@
 #define CLOCK_MAX_EPOCH 4102444799LL
 #define OFFSET_KEY "utc_offset_min"
 
+static _Atomic(gadget_clock_change_cb) s_change_cb;
 static atomic_int s_offset;
+
+void gadget_clock_set_change_cb(gadget_clock_change_cb callback) { atomic_store(&s_change_cb, callback); }
+int gadget_clock_offset_minutes(void) { return atomic_load(&s_offset); }
+
+static void clock_changed(void) {
+    gadget_clock_change_cb callback = atomic_load(&s_change_cb);
+    if (callback) callback();
+}
+
+static void clock_synced(struct timeval *tv) { (void)tv; clock_changed(); }
+
+bool gadget_clock_restore_utc(int64_t epoch) {
+    if (epoch < CLOCK_MIN_EPOCH || epoch > CLOCK_MAX_EPOCH) return false;
+    struct timeval tv = {.tv_sec = (time_t)epoch};
+    if (settimeofday(&tv, NULL)) return false;
+    clock_changed(); return true;
+}
 static atomic_flag s_setting = ATOMIC_FLAG_INIT;
 static bool s_sntp_started;
 static const char *TAG = "link.gadget_clock";
@@ -56,6 +74,7 @@ void gadget_clock_wifi_up(void) {
     if (s_sntp_started) return;
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     config.wait_for_sync = false;
+    config.sync_cb = clock_synced;
     esp_err_t err = esp_netif_sntp_init(&config);
     s_sntp_started = err == ESP_OK;
     ESP_LOGI(TAG, "SNTP init status=%d", (int)err);
@@ -74,6 +93,7 @@ bool gadget_clock_set(int64_t utc_epoch, int utc_offset_min) {
     if (ok) ok = settimeofday(&tv, NULL) == 0;
     if (ok) atomic_store(&s_offset, utc_offset_min);
     atomic_flag_clear(&s_setting);
+    if (ok) clock_changed();
     return ok;
 }
 

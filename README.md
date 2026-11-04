@@ -457,6 +457,10 @@ settings.
 
 ## For developers
 
+[E1001 Care Board](projects/care-board/README.md) adds large-print family messages,
+local reminders and key-press events for remote family care.
+
+
 The XIAO 1.47 Touch Display is also supported upstream. Sticky uses Muse's
 FreeInk e-paper UI, with touch settings and a keyboard. Its avatar refreshes
 once a second; images use four grays.

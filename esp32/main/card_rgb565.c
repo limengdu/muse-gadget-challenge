@@ -17,6 +17,7 @@
 #include "card_rgb565.h"
 #include "card_fonts.h"
 #include "card_icons.h"
+#include "card_mask.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -97,12 +98,18 @@ int card_rgb565_measure(const char *text, int size) {
     return width;
 }
 
+// Decodes and paints each mask row into the RGB565 canvas.
+// 逐行解码图案并绘制到 RGB565 画布。
 static void mask(card_rgb565_t *c, int x, int y, int w, int h,
-                 const uint8_t *data, uint16_t color) {
-    int stride = (w + 7) / 8;
-    for (int py = 0; py < h; py++)
+                 const uint8_t *data, uint16_t encoded_bytes, uint16_t color) {
+    card_mask_decoder_t decoder;
+    if (!card_mask_begin(&decoder, data, encoded_bytes, w, h)) return;
+    for (int py = 0; py < h; py++) {
+        const uint8_t *row = card_mask_next(&decoder);
+        if (!row) return;
         for (int px = 0; px < w; px++)
-            if (data[py * stride + px / 8] & (0x80 >> (px % 8))) pixel(c, x + px, y + py, color);
+            if (row[px / 8] & (0x80 >> (px % 8))) pixel(c, x + px, y + py, color);
+    }
 }
 
 void card_rgb565_text(card_rgb565_t *c, int x, int y, int width, const char *text,
@@ -117,11 +124,12 @@ void card_rgb565_text(card_rgb565_t *c, int x, int y, int width, const char *tex
         if (used + g->advance + (clipped ? ellipsis->advance : 0) > width) {
             if (used + ellipsis->advance <= width)
                 mask(c, x + used + ellipsis->x_offset, y + f->ascent + ellipsis->y_offset,
-                     ellipsis->width, ellipsis->height, f->bitmap + ellipsis->offset, color);
+                     ellipsis->width, ellipsis->height, f->bitmap + ellipsis->offset,
+                     ellipsis->encoded_bytes, color);
             break;
         }
         mask(c, x + used + g->x_offset, y + f->ascent + g->y_offset,
-             g->width, g->height, f->bitmap + g->offset, color);
+             g->width, g->height, f->bitmap + g->offset, g->encoded_bytes, color);
         used += g->advance;
     }
 }
@@ -129,6 +137,6 @@ void card_rgb565_text(card_rgb565_t *c, int x, int y, int width, const char *tex
 bool card_rgb565_icon(card_rgb565_t *c, int x, int y, const char *name, int size, uint16_t color) {
     const card_icon_t *i = card_icon_find(name, size);
     if (!i) return false;
-    mask(c, x + i->x_offset, y + i->y_offset, i->width, i->height, i->bitmap, color);
+    mask(c, x + i->x_offset, y + i->y_offset, i->width, i->height, i->bitmap, i->encoded_bytes, color);
     return true;
 }
