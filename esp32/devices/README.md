@@ -179,6 +179,11 @@ confirms FAT SD mount/removal/reinsertion, charging-state indication,
 battery-only Power off and restart, Muse OTA and measurement of standby
 current. The numeric current value and measurement conditions will be
 recorded when supplied.
+The Sticky overlay also enables [Fridge Notes](../../projects/fridge-notes/README.md)
+([简体中文](../../projects/fridge-notes/README.zh-CN.md)): four persistent family
+lists, touch checkboxes and a VM mirror. Once a list exists it is the home page;
+the face and Settings remain reachable. Its application-specific validation is
+recorded in the project guide, separately from the board checks above.
 Back up factory firmware and any device-specific data before flashing.
 
 The optional `reterminal-sticky-link` profile uses the same SSD1677 and SHT40

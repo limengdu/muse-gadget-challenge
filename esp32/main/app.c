@@ -63,6 +63,9 @@
 #include "vm_api.h"
 #include "vm_connect.h"
 #include "noise_control.h"
+#if CONFIG_MUSE_STICKY_NOTES
+#include "sticky_notes.h"
+#endif
 #include "image_fetch.h"
 #include "noise_tunnel.h"
 #include "led_status.h"
@@ -1885,6 +1888,11 @@ static cJSON *on_ws_command(
         return gadget_clock_command(params, request_id, session_generation);
     }
 #endif
+#if CONFIG_MUSE_STICKY_NOTES
+    if (sticky_notes_handles(command)) {
+        return sticky_notes_command(command, params, request_id, session_generation);
+    }
+#endif
     if (strcmp(command, "device.list_vms") == 0) {
         return list_vms_command();
     }
@@ -2657,6 +2665,9 @@ void app_run(void) {
     } else {
         ESP_LOGW(TAG, "gadget events init failed");
     }
+#endif
+#if CONFIG_MUSE_STICKY_NOTES
+    if (!sticky_notes_init()) ESP_LOGW(TAG, "Fridge Notes initialization failed");
 #endif
     heap_snapshot("after noise_ctrl_init");
 #if CONFIG_HOMEHUB_BLE_COMMANDS

@@ -35,6 +35,9 @@
 #include "esp_crt_bundle.h"
 #include "esp_random.h"
 #include "esp_heap_caps.h"
+#if CONFIG_MUSE_STICKY_NOTES
+#include "sticky_notes.h"
+#endif
 #include "esp_http_client.h"
 #include "esp_app_desc.h"
 #include "freertos/FreeRTOS.h"
@@ -1494,6 +1497,10 @@ static char *build_register_json(void) {
                            "the agent's name.",
                     nullptr, nullptr);
     }
+#endif
+
+#if CONFIG_MUSE_STICKY_NOTES
+    sticky_notes_register(commands);
 #endif
 
 #if CONFIG_HOMEHUB_GADGET_EVENTS

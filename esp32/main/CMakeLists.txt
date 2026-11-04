@@ -95,6 +95,10 @@ else()
     list(APPEND GADGET_SRCS "led_status.c")
 endif()
 
+if(CONFIG_MUSE_STICKY_NOTES)
+    list(APPEND GADGET_SRCS "sticky_notes.c" "sticky_notes_model.c")
+endif()
+
 if(CONFIG_HOMEHUB_GADGET_EVENTS)
     list(APPEND GADGET_SRCS "gadget_events.c")
 endif()

@@ -333,6 +333,16 @@ menu "ESP32 Device SDK"
             Synchronize UTC through pool.ntp.org once Wi-Fi has an address.
             clock.set also sets UTC and a persistent local offset in minutes.
 
+    config MUSE_STICKY_NOTES
+        bool "Fridge Notes on reTerminal Sticky"
+        depends on MUSE_BOARD_RETERMINAL_STICKY && HOMEHUB_DAEMON_REQUESTS
+        select HOMEHUB_GADGET_EVENTS
+        select HOMEHUB_GADGET_CLOCK
+        default n
+        help
+            Keep four family lists in NVS, display them with FreeInk, and
+            mirror them to gadget/fridge-notes/lists.json on the Muse VM.
+
     config HOMEHUB_EPAPER_CARDS
         bool "Native e-paper card pages"
         depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6

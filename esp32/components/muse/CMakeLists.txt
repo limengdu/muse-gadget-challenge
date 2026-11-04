@@ -40,6 +40,9 @@ if(CONFIG_MUSE_ENABLED)
     if(CONFIG_MUSE_UI_FREEINK)
         # E-paper: FreeInk draws the face, Settings and the keyboard.
         list(APPEND srcs "eink/muse_eink_ui.cpp" "eink/muse_eink_settings.cpp" "eink/muse_eink_fonts.cpp")
+        if(CONFIG_MUSE_STICKY_NOTES)
+            list(APPEND srcs "eink/muse_eink_notes.cpp")
+        endif()
         # The LVGL UI's fonts, as the TTFs LVGL builds them from (eink/fonts/).
         list(APPEND embed "eink/fonts/montserrat.ttf" "eink/fonts/symbols.ttf" "eink/fonts/unscii.ttf")
     else()
@@ -174,6 +177,10 @@ idf_component_register(
     REQUIRES esp_driver_gpio esp_driver_i2c
     PRIV_REQUIRES ${muse_priv_requires}
 )
+
+if(CONFIG_MUSE_STICKY_NOTES)
+    target_include_directories(${COMPONENT_LIB} PRIVATE "${COMPONENT_DIR}/../../main")
+endif()
 
 if(CONFIG_MUSE_UI_FREEINK)
     # FreeInk's board profile, for the panel and its pins. PUBLIC: FreeInk's

@@ -46,8 +46,12 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include "sdkconfig.h"
 #include "muse_eink.h"
 #include "muse_eink_priv.h"
+#if CONFIG_MUSE_STICKY_NOTES
+#include "muse_eink_notes.h"
+#endif
 
 extern "C" {
 #include "muse_ble.h"
@@ -741,6 +745,10 @@ static bool present_image(void)
 /* ─── The loop ──────────────────────────────────────────────────────────── */
 
 static bool s_settings;             /* the Settings page is showing */
+#if CONFIG_MUSE_STICKY_NOTES
+static bool s_notes, s_return_notes, s_had_notes;
+static bool s_saw_reply, s_notes_home_pending;
+#endif
 static bool s_render_image;         /* the image hit region in the current frame */
 
 void navigation_changed(void)
@@ -773,6 +781,11 @@ static void root_screen(Screen &screen, void *)
         s_mic_visible = false;
         settings_screen(screen);
         if (!settings_in_subpage()) draw_dots(true);
+#if CONFIG_MUSE_STICKY_NOTES
+    } else if (s_notes) {
+        s_mic_visible = false;
+        notes_screen(screen);
+#endif
     } else {
         face_screen(screen, s_face);
         draw_dots(false);
@@ -828,8 +841,71 @@ static void set_page(bool settings)
     s_mic_visible = false;   /* re-enable only after the face is drawn */
     s_face_active = !settings;
     if (!settings) settings_home();
+#if CONFIG_MUSE_STICKY_NOTES
+    s_notes = !settings && notes_available();
+    s_face_active = !settings && !s_notes;
+#endif
     s_need_clean = true;
 }
+
+#if CONFIG_MUSE_STICKY_NOTES
+static void notes_face(void)
+{
+    set_page(false);
+    if (s_notes) navigation_changed();
+    s_notes = false;
+    s_face_active = true;
+    s_need_clean = true;
+}
+
+// Routes the Notes/list edges into the existing face and Settings pages.
+// 将便签页及清单边界接入现有表情页和设置页。
+static bool notes_navigation(int dx)
+{
+    if (s_settings) return false;
+    if (!s_notes) {
+        if (dx < 0 && notes_available()) {
+            navigation_changed();
+            s_notes = true;
+            s_face_active = false;
+            s_need_clean = true;
+            return true;
+        }
+        return false;
+    }
+    int edge = notes_swipe(dx);
+    if (edge < 0) notes_face();
+    else if (edge > 0) set_page(true);
+    return true;
+}
+
+// Restores the home list after the voice pipeline finishes displaying its reply.
+// 语音流程显示完回复后恢复清单主页。
+static void notes_voice_update(muse_mode_t was)
+{
+    bool available = notes_available();
+    if (available && !s_had_notes) s_notes_home_pending = true;
+    if (s_face.mode == MUSE_MODE_LISTENING && was != MUSE_MODE_LISTENING) {
+        s_return_notes = true;
+        s_saw_reply = false;
+        notes_face();
+    }
+    if (s_return_notes && s_face.answering) s_saw_reply = true;
+    if (available && ((s_notes_home_pending && !s_settings && s_face.mode == MUSE_MODE_IDLE)
+        || (s_return_notes && s_saw_reply && !s_settings && s_face.mode == MUSE_MODE_IDLE))) {
+        navigation_changed();
+        set_page(false);
+        s_notes = true;
+        s_face_active = false;
+        notes_home();
+        s_need_clean = true;
+        s_draw_now = true;
+        s_return_notes = false;
+        s_notes_home_pending = false;
+    }
+    s_had_notes = available;
+}
+#endif
 
 /* Touch events since the last pass, as FreeInkUI input: a press, then on its
  * release a tap, a long press or a swipe. */
@@ -860,6 +936,13 @@ static void handle_touch(void)
         int dx = e.x - down_x, dy = e.y - down_y;
         if (abs(dy) >= SWIPE_PX && abs(dy) > abs(dx)) {
             /* Up and down page through a long Settings page. */
+#if CONFIG_MUSE_STICKY_NOTES
+            if (s_notes && !s_image_shown) {
+                notes_scroll(dy);
+                request_draw();
+                break;
+            }
+#endif
             if (s_settings && !settings_typing()) {
                 settings_scroll(dy);
                 request_draw();
@@ -870,6 +953,12 @@ static void handle_touch(void)
         if (abs(dx) >= SWIPE_PX && abs(dx) > abs(dy)) {
             /* Swipes move between Muse and Settings, as the LVGL tileview. */
             if (s_image_shown) continue;
+#if CONFIG_MUSE_STICKY_NOTES
+            if (notes_navigation(dx)) {
+                request_draw();
+                break;
+            }
+#endif
             if (dx < 0 && !s_settings) set_page(true);
             else if (dx > 0 && s_settings && !settings_typing() && !settings_back()) set_page(false);
             request_draw();
@@ -919,7 +1008,11 @@ static void ui_task(void *arg)
 
         if (s_want_face) {
             s_want_face = false;
+#if CONFIG_MUSE_STICKY_NOTES
+            notes_face();
+#else
             set_page(false);
+#endif
             s_draw_now = true;
         }
         xSemaphoreTake(s_image_mutex, portMAX_DELAY);
@@ -933,6 +1026,9 @@ static void ui_task(void *arg)
         }
         xSemaphoreGive(s_image_mutex);
 
+#if CONFIG_MUSE_STICKY_NOTES
+        if (s_notes) notes_prepare();
+#endif
         handle_touch();
 
         muse_mode_t was = s_face.mode;
@@ -941,6 +1037,9 @@ static void ui_task(void *arg)
             image_hide();
             set_page(false);
         }
+#if CONFIG_MUSE_STICKY_NOTES
+        notes_voice_update(was);
+#endif
         if (s_settings && now >= next_settings_tick) {
             next_settings_tick = now + (muse_board->frame_ms > 0 ? muse_board->frame_ms : 1000) / 1000.0f;
             if (settings_tick()) s_draw_now = true;
@@ -950,13 +1049,22 @@ static void ui_task(void *arg)
         bool frame_due = (TickType_t)(xTaskGetTickCount() - next_frame) < portMAX_DELAY / 2;
         bool draw_requested = s_draw_now.exchange(false);
         bool redraw = draw_requested || !(s_face == s_drawn) || g_app->invalidated();
+#if CONFIG_MUSE_STICKY_NOTES
+        if (s_notes) redraw = draw_requested || g_app->invalidated()
+            || (s_notes && strcmp(s_face.power, s_drawn.power) != 0)
+            || strcmp(s_face.pair_code, s_drawn.pair_code) != 0;
+#endif
         if (s_image_shown) {
             /* An image stays as it is, unless the pairing card comes or goes over it. */
             redraw = draw_requested || strcmp(s_face.pair_code, s_drawn.pair_code) != 0;
         }
         if (frame_due) {
             next_frame = xTaskGetTickCount() + frame;
-            if (!s_settings && !s_image_shown) {
+            if (!s_settings && !s_image_shown
+#if CONFIG_MUSE_STICKY_NOTES
+                && !s_notes
+#endif
+                ) {
                 float mode_t;
                 muse_state_mode(&mode_t);
                 muse_pose_t pose = {s_face.mode, now, mode_t, s_level, muse_state_happiness()};
@@ -1049,6 +1157,12 @@ extern "C" esp_err_t muse_ui_start(void)
     app.on(ACTION_MUSE, on_muse);
     app.on(ACTION_IMAGE, on_image);
     settings_setup(app);
+#if CONFIG_MUSE_STICKY_NOTES
+    notes_setup(app);
+    s_notes = notes_available();
+    s_had_notes = s_notes;
+    s_face_active = !s_notes;
+#endif
 
     /* Internal RAM: Settings' handlers write NVS, which turns the cache off. */
     if (xTaskCreatePinnedToCoreWithCaps(ui_task, "muse_eink", 16384, NULL, MUSE_UI_PRIORITY, &s_task, MUSE_UI_CORE,
