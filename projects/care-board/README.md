@@ -20,7 +20,7 @@ A calm kitchen screen for an older parent, connected to a family member's Muse.
 Send a warm message from anywhere, set a daily reminder, and hear back when the
 parent presses a key. Large text and a retained e-paper image keep the day visible.
 
-[简体中文](README.zh-CN.md)
+[简体中文](README.zh-CN.md) · [Muse skill](SKILL.md) · [Validation](VALIDATION.md)
 
 ## Hardware
 

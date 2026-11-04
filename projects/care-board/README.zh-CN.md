@@ -20,7 +20,7 @@ limitations under the License.
 要留言或提醒什么，父母按一下按键，就能把确认、报平安或回电请求送回家人的 Muse。
 电子纸持续保留画面，日常信息一眼可见。
 
-[English](README.md)
+[English](README.md) · [Muse 技能](SKILL.md) · [验证记录](VALIDATION.md)
 
 ## 硬件和按键
 
