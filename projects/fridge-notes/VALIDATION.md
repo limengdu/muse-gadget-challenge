@@ -18,7 +18,7 @@ limitations under the License.
 
 Tested on 2026-11-04, branch `project/fridge-notes`, base commit `b227353` plus
 this uncommitted patch. Target: Seeed reTerminal Sticky, full Muse/FreeInk UI.
-Hardware units exercised: **0**; board revision: not observed. ESP-IDF checkout:
+Hardware units exercised: **1** (MAC e8:3d:c1:fc:79:74); board revision: factory Sticky, CH343 console. ESP-IDF checkout:
 **v6.0.1**; ESP32-S3 compiler: **Xtensa GCC 15.2.0**; host compiler: Apple Clang.
 FreeInk source pin: `2c047df7792cedece1191503793f18f5d8f1c695`, supplied by
 `esp32/managed_components/freeink-sdk`.
@@ -143,3 +143,16 @@ build. Firmware images and size figures are unavailable for this patch.
 The shared gadget event and clock modules are consumed through their public
 APIs; their source implementations are unchanged by this patch. Existing board
 validation remains in [the device guide](../../esp32/devices/README.md).
+
+## On-device (2026-11-04)
+
+Flashed Fridge Notes after a full 32 MB factory backup
+(`backups/reterminal-sticky-e83dc1fc7974-factory.bin` in the challenge repo).
+Device reported Online with Wi-Fi connected. Through `tools/muse/chat.py`:
+
+1. Muse created Shopping, Chores, To-do and Notes, then added Eggs and Milk to Shopping.
+2. Muse read the shopping list and reported both items unchecked.
+3. Muse marked Eggs done; Milk remained open.
+
+Touch toggles, AI-button voice notes, VM mirror contents and sleep/wake were
+not exercised in this pass. Battery was about 11–13 % during the checks.
