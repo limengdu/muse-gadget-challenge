@@ -409,10 +409,14 @@ its animation (`jollybot.gif`, and `happy_anim.c/.h` made from it by
 
 Third-party code keeps its upstream license and header: `minimp3.h` (CC0),
 `main/pixel_font.c` (BSD-2-Clause, Adafruit),
+`main/card_fonts.c` (SIL OFL 1.1, Montserrat Project Authors; bitmap masks),
+`main/card_icons.c` (Apache-2.0, Google LLC; Material Symbols Rounded masks),
 `components/muse/boards/ostb_echoear_display_init.h` (MIT, 78/xiaozhi-esp32),
 `main/epd_ssd1677.c` (MIT, Seeed-reTerminal-E10xx-Firmware),
 `components/tinyh264/src` (Apache-2.0, the Android Open Source Project) and
 `components/libvpx_vp8/src` (BSD-3-Clause and `PATENTS`, the WebM Project).
+The card assets retain their font notices and full licenses in
+`main/card_assets_licenses/`. `tools/gen_card_assets.py` regenerates the masks.
 Each third-party file is listed under License in `README.md` and the root
 `README.md`; add a new one to both.
 Don't restyle them or replace their headers with the Apache one; `components/minimp3/README.md` says how to

@@ -39,6 +39,9 @@
 #include "happy_anim.h"
 #include "pixel_font.h"
 #include "stack_monitor.h"
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+#include "epaper_cards.h"
+#endif
 
 static const char *TAG = "link.led";
 
@@ -257,6 +260,81 @@ static led_state_t s_state = LED_STATE_BOOT;
 static char s_title[48];
 static TaskHandle_t s_task;
 
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+static struct {
+    epaper_cards_render_cb render;
+    void *ctx;
+    uint64_t generation;
+    bool active, dirty;
+} s_app;
+
+bool epaper_cards_show(epaper_cards_render_cb render, void *ctx) {
+    if (!s_ready || !render || xSemaphoreTake(s_mutex, 0) != pdTRUE) return false;
+    s_app.render = render;
+    s_app.ctx = ctx;
+    s_app.generation++;
+    s_app.active = s_app.dirty = true;
+    xSemaphoreGive(s_mutex);
+    xTaskNotifyGive(s_task);
+    return true;
+}
+
+bool epaper_cards_request_redraw(void) {
+    if (!s_ready || xSemaphoreTake(s_mutex, 0) != pdTRUE) return false;
+    bool active = s_app.active;
+    if (active) s_app.dirty = true;
+    xSemaphoreGive(s_mutex);
+    if (active) xTaskNotifyGive(s_task);
+    return active;
+}
+
+static void replace_app_page(void) {
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_app.active = s_app.dirty = false;
+    s_app.generation++;
+    xSemaphoreGive(s_mutex);
+}
+
+// Renders off the session task; generations discard pages replaced during rendering.
+// 在会话任务之外绘图；代号用于丢弃绘制期间已被替换的页面。
+static bool draw_app_page(void) {
+    xSemaphoreTake(s_panel_lock, portMAX_DELAY);
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    bool active = s_app.active, dirty = s_app.dirty;
+    epaper_cards_render_cb render = s_app.render;
+    void *ctx = s_app.ctx;
+    uint64_t generation = s_app.generation;
+    if (active && dirty) s_app.dirty = false;
+    xSemaphoreGive(s_mutex);
+    if (active && dirty) {
+        epaper_cards_canvas_t canvas;
+        epaper_cards_canvas(&canvas, s_frame, EPD_FRAME_BYTES, EPD_W, EPD_H,
+                            s_panel->bits_per_pixel);
+        epaper_cards_clear(&canvas, CARD_WHITE);
+        render(&canvas, ctx);
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        bool current = s_app.active && generation == s_app.generation;
+        if (current) {
+            xSemaphoreTake(s_lock, portMAX_DELAY);
+            s_image_mode = s_image_dirty = s_status_drawn = false;
+            xSemaphoreGive(s_lock);
+        }
+        xSemaphoreGive(s_mutex);
+        if (current) {
+            esp_err_t err = s_panel->update(s_frame, s_shown, true);
+            if (err == ESP_OK) {
+                if (s_shown) memcpy(s_shown, s_frame, EPD_FRAME_BYTES);
+                s_fast_refreshes = 0;
+            } else {
+                ESP_LOGW(TAG, "app page refresh failed: %d", (int)err);
+            }
+        }
+    }
+    xSemaphoreGive(s_panel_lock);
+    return active;
+}
+#endif
+
 static void epd_dither(void) {
     if (EPD_COLOR) {
         dither_color((const uint16_t *)s_canvas, s_frame, EPD_W, EPD_H, s_err);
@@ -352,8 +430,26 @@ static void epd_task(void *arg) {
     stack_monitor_t stack = STACK_MONITOR_INIT;
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        while (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(STATUS_SETTLE_MS))) {
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+        if (draw_app_page()) {
+            stack_monitor_poll(&stack);
+            continue;
         }
+#endif
+        while (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(STATUS_SETTLE_MS))) {
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
+            bool app_active = s_app.active;
+            xSemaphoreGive(s_mutex);
+            if (app_active) break;
+#endif
+        }
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+        if (draw_app_page()) {
+            stack_monitor_poll(&stack);
+            continue;
+        }
+#endif
         char title[sizeof(s_title)];
         xSemaphoreTake(s_mutex, portMAX_DELAY);
         const char *label = status_label(s_state);
@@ -471,6 +567,9 @@ bool led_status_draw_rect(int x, int y, int w, int h, const uint16_t *pixels) {
     if (!s_ready || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > EPD_W || y + h > EPD_H) {
         return false;
     }
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+    replace_app_page();
+#endif
     const uint8_t *src = (const uint8_t *)pixels;
     int pixel_bytes = EPD_COLOR ? 2 : 1;
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -521,6 +620,10 @@ void led_status_draw_done(void) {
 
 void led_status_show_animation(void) {
     if (!s_ready) return;
+#if CONFIG_HOMEHUB_EPAPER_CARDS
+    replace_app_page();
+    xTaskNotifyGive(s_task);
+#endif
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool was_image = s_image_mode;
     s_image_mode = false;

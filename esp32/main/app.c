@@ -44,6 +44,12 @@
 
 #include "identity.h"
 #include "sdk_token_console.h"
+#if CONFIG_HOMEHUB_GADGET_EVENTS
+#include "gadget_events.h"
+#endif
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+#include "gadget_clock.h"
+#endif
 #include "config_store.h"
 #include "wifi_mgr.h"
 #include "wifi_known.h"
@@ -1869,6 +1875,16 @@ static cJSON *on_ws_command(
         return ble_commands_handle(command, params, request_id, session_generation);
     }
 #endif
+#if CONFIG_HOMEHUB_GADGET_EVENTS
+    if (strcmp(command, "events.poll") == 0) {
+        return gadget_events_command(params);
+    }
+#endif
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+    if (strcmp(command, "clock.set") == 0) {
+        return gadget_clock_command(params, request_id, session_generation);
+    }
+#endif
     if (strcmp(command, "device.list_vms") == 0) {
         return list_vms_command();
     }
@@ -2581,6 +2597,9 @@ void app_run(void) {
     }
 
     config_store_init();
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+    gadget_clock_init();
+#endif
     wifi_known_init();
 
     identity_init();
@@ -2632,6 +2651,13 @@ void app_run(void) {
     noise_ctrl_init(identity_node_id(), identity_ble_name(), on_ws_control_status);
     noise_ctrl_set_command_cb(on_ws_command);
     noise_ctrl_set_agent_name_cb(led_status_set_title);
+#if CONFIG_HOMEHUB_GADGET_EVENTS
+    if (gadget_events_init()) {
+        sdk_token_console_register_handler(gadget_events_console_command);
+    } else {
+        ESP_LOGW(TAG, "gadget events init failed");
+    }
+#endif
     heap_snapshot("after noise_ctrl_init");
 #if CONFIG_HOMEHUB_BLE_COMMANDS
     ble_commands_init(&s_ble_cmd_ops);

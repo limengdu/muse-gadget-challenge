@@ -241,6 +241,11 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 来我们的社区 [Discord](https://discord.gg/3bhjCkZdd6) 认识其他正在制作、改装 Muse 设备的人。找灵感、互相帮忙，也把你做出来的东西分享出去。
 
+## Gadget 项目共享基础
+
+E1001 和 E1002 已启用设备事件（`events.poll`）、本地时钟（`clock.set`）和原生卡片页面。
+[共享基础说明](docs/gadget-foundation.zh-CN.md) 包含接口、控制台入口、资源生成和主机预览方法。
+
 ## 许可证
 
 ESP32 设备 SDK 采用 Apache License 2.0，全文见
@@ -249,6 +254,8 @@ ESP32 设备 SDK 采用 Apache License 2.0，全文见
 - [`components/minimp3/include/minimp3.h`](components/minimp3)，MP3 解码器，许可证是 CC0-1.0。见 [`components/minimp3/LICENSE`](components/minimp3/LICENSE)。
 - [`main/pixel_font.c`](main/pixel_font.c)，Adafruit GFX 字体，许可证是 BSD-2-Clause，文件头里写了。
 - [`components/muse/boards/ostb_echoear_display_init.h`](components/muse/boards/ostb_echoear_display_init.h)，来自 78/xiaozhi-esp32 的 ST77916 面板初始化表，许可证是 MIT，上游声明保留在文件里。
+- [`main/card_fonts.c`](main/card_fonts.c) 是 Montserrat Medium 位图，部分标点由现有字形组合而成，采用 SIL OFL 1.1，见[声明和许可全文](main/card_assets_licenses/Montserrat-OFL.txt)。
+- [`main/card_icons.c`](main/card_icons.c) 是 Google LLC 的 Material Symbols Rounded 位图，采用 Apache-2.0，见[许可全文](main/card_assets_licenses/MaterialSymbols-LICENSE.txt)。
 - [`main/epd_ssd1677.c`](main/epd_ssd1677.c) 是 Sticky Link 状态屏使用的 SSD1677 驱动，基于 Seeed-reTerminal-E10xx-Firmware 的刷新序列，采用 MIT 并保留原版权和许可声明。
 - [`board_seeed_xiao_s3_147.c`](components/muse/boards/board_seeed_xiao_s3_147.c) 中改编自 Seeed-Studio/Seeed_GFX2 的 JD9853A 初始化序列采用 MIT，见 [`Seeed_GFX2.txt`](devices/licenses/Seeed_GFX2.txt)。
 - [`components/muse/eink/fonts/`](components/muse/eink/fonts/) 中的电子纸字体是 Montserrat（SIL OFL 1.1）、unscii（公有领域）和 Font Awesome 5 Free（SIL OFL 1.1）的子集，详见目录中的 README。

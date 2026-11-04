@@ -318,6 +318,29 @@ menu "ESP32 Device SDK"
             boards with display.draw_file, always have it. Costs a few KB
             of flash and a small queue in RAM.
 
+    config HOMEHUB_GADGET_EVENTS
+        bool "Device events in Muse chat"
+        depends on HOMEHUB_DAEMON_REQUESTS
+        default n
+        help
+            Queue device events in RAM and post them to Muse chat over Link.
+            events.poll returns the most recent 32 events for catching up.
+
+    config HOMEHUB_GADGET_CLOCK
+        bool "Local gadget clock"
+        default n
+        help
+            Synchronize UTC through pool.ntp.org once Wi-Fi has an address.
+            clock.set also sets UTC and a persistent local offset in minutes.
+
+    config HOMEHUB_EPAPER_CARDS
+        bool "Native e-paper card pages"
+        depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6
+        default n
+        help
+            Draw text and icons directly in the 800x480 panel's ink format.
+            Card pages refresh on the display task and remain until replaced.
+
     config HOMEHUB_DEV_BUILD
         bool "Dev build (dev signing key + dev-only affordances)"
         default y

@@ -366,6 +366,8 @@ Muse Gadgets 采用 Apache License 2.0 许可，见 [`LICENSE`](LICENSE)。以�
 | [`esp32/components/minimp3/include/minimp3.h`](esp32/components/minimp3) | [lieff/minimp3](https://github.com/lieff/minimp3) | CC0-1.0，见 [`LICENSE`](esp32/components/minimp3/LICENSE) |
 | [`esp32/components/muse/boards/ostb_echoear_display_init.h`](esp32/components/muse/boards/ostb_echoear_display_init.h) | [78/xiaozhi-esp32 ESP-VoCat 屏幕初始化序列](https://github.com/78/xiaozhi-esp32/blob/0d576d3d4c049c6f55eaf879725dc23e516511b4/main/boards/espressif/esp-vocat/esp_vocat.cc) | MIT，保留在文件头里 |
 | [`esp32/main/pixel_font.c`](esp32/main/pixel_font.c) | Adafruit GFX `glcdfont.c` | BSD-2-Clause，见文件头 |
+| [`esp32/main/card_fonts.c`](esp32/main/card_fonts.c) | Montserrat Medium 位图，部分标点由字体原有字形组合而成 | SIL Open Font License 1.1；[声明和许可全文](esp32/main/card_assets_licenses/Montserrat-OFL.txt) |
+| [`esp32/main/card_icons.c`](esp32/main/card_icons.c) | Google LLC 的 Material Symbols Rounded | Apache-2.0；[许可全文](esp32/main/card_assets_licenses/MaterialSymbols-LICENSE.txt) |
 | [`esp32/main/epd_ssd1677.c`](esp32/main/epd_ssd1677.c) | Seeed-reTerminal-E10xx-Firmware 的 SSD1677 刷新序列 | MIT，保留在文件头里 |
 | [`esp32/components/muse/eink/fonts/montserrat.ttf`](esp32/components/muse/eink/fonts) | LVGL v9.5.0 使用的 Montserrat Medium | SIL Open Font License 1.1 |
 | [`esp32/components/muse/eink/fonts/unscii.ttf`](esp32/components/muse/eink/fonts) | unscii-8 | 公有领域 |

@@ -53,3 +53,8 @@ CONFIG_SPIRAM_SPEED_80M=y
 # The BLE controller already takes ~70 KB of internal RAM on the S3; keep the
 # NimBLE host's allocations in PSRAM so pairing has room.
 CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+
+# Used by this repository's projects.
+CONFIG_HOMEHUB_GADGET_EVENTS=y
+CONFIG_HOMEHUB_GADGET_CLOCK=y
+CONFIG_HOMEHUB_EPAPER_CARDS=y

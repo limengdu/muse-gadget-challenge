@@ -372,6 +372,12 @@ Meet other hackers who are building and customizing Muse gadgets in our
 community [Discord](https://discord.gg/3bhjCkZdd6). Get inspired, support each
 other, and share what you make.
 
+## Gadget project foundation
+
+E1001 and E1002 enable device events (`events.poll`), a local clock (`clock.set`),
+and native card pages. [Gadget foundation](docs/gadget-foundation.md) describes
+the APIs, console hook, generated assets and host previews.
+
 ## License
 
 The ESP32 Device SDK is licensed under the Apache License, Version 2.0, found
@@ -385,6 +391,11 @@ their upstream licenses:
 - [`components/muse/boards/ostb_echoear_display_init.h`](components/muse/boards/ostb_echoear_display_init.h),
   the ST77916 panel initialization table from 78/xiaozhi-esp32, is MIT, as its
   retained upstream notice says.
+- [`main/card_fonts.c`](main/card_fonts.c) contains Montserrat Medium bitmap masks,
+  including punctuation assembled from existing glyphs, under SIL OFL 1.1.
+  See [the notice and license](main/card_assets_licenses/Montserrat-OFL.txt).
+- [`main/card_icons.c`](main/card_icons.c) contains Material Symbols Rounded masks
+  (Google LLC), Apache-2.0. See [the license](main/card_assets_licenses/MaterialSymbols-LICENSE.txt).
 - [`main/epd_ssd1677.c`](main/epd_ssd1677.c), the reTerminal Sticky SSD1677
   driver based on the Seeed-reTerminal-E10xx-Firmware refresh sequence (the
   Sticky's Link status profile), is MIT and retains the source's copyright and

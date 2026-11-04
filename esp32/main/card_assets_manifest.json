@@ -1,0 +1,20 @@
+{
+  "fonts_bytes": 71825,
+  "icons_bytes": 55267,
+  "total_bytes": 127092,
+  "font_sizes": [
+    28,
+    40,
+    60,
+    96
+  ],
+  "icon_sizes": [
+    64,
+    112
+  ],
+  "sources": {
+    "montserrat.ttf": "ded8e417a2af7c07e60c32b1ca2a5eb8684006ca82dbe146e9bb7c2e5fd92617",
+    "MaterialSymbolsRounded.ttf": "7e74e36533ccee12c2b81e75bfcf3ccf123d3bb7e7e46d65d94445f23db0c97c",
+    "MaterialSymbolsRounded.codepoints": "a7404d9e5a1b63f496cf05ace45d386075886b5a7f123fba9f29527cb6006fde"
+  }
+}

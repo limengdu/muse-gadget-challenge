@@ -1496,6 +1496,32 @@ static char *build_register_json(void) {
     }
 #endif
 
+#if CONFIG_HOMEHUB_GADGET_EVENTS
+    cJSON *events_optional = cJSON_CreateObject();
+    cJSON *since_param = cJSON_CreateObject();
+    cJSON_AddStringToObject(since_param, "type", "number");
+    cJSON_AddStringToObject(since_param, "description", "Return sequences greater than since; default 0.");
+    cJSON_AddItemToObject(events_optional, "since", since_param);
+    add_command(commands, "events.poll",
+                "Catch up on the last 32 device events after missed messages. These are "
+                "the same events sent to your chat as messages prefixed [... event]. "
+                "Returns events, last_seq and the dropped pending-event count.",
+                nullptr, events_optional);
+#endif
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+    cJSON *clock_required = cJSON_CreateObject();
+    cJSON *epoch_param = cJSON_CreateObject();
+    cJSON_AddStringToObject(epoch_param, "type", "integer");
+    cJSON_AddStringToObject(epoch_param, "description", "UTC epoch seconds, year 2024-2099.");
+    cJSON_AddItemToObject(clock_required, "utc_epoch", epoch_param);
+    cJSON *offset_param = cJSON_CreateObject();
+    cJSON_AddStringToObject(offset_param, "type", "integer");
+    cJSON_AddStringToObject(offset_param, "description", "Local UTC offset in minutes, -840 to 840.");
+    cJSON_AddItemToObject(clock_required, "utc_offset_min", offset_param);
+    add_command(commands, "clock.set", "Set UTC and the persistent local time offset.",
+                clock_required, nullptr);
+#endif
+
 #if CONFIG_HOMEHUB_VOICE
     cJSON *volume_optional = cJSON_CreateObject();
     cJSON *volume_param = cJSON_CreateObject();

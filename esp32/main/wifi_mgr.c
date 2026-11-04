@@ -15,6 +15,10 @@
  */
 
 #include "wifi_mgr.h"
+#include "sdkconfig.h"
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+#include "gadget_clock.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -191,6 +195,9 @@ static void event_handler(void *arg, esp_event_base_t base,
         s_keep_connected = true;
         s_reconnect_backoff_ms = RECONNECT_BACKOFF_MIN_MS;  // reset on success
         xEventGroupSetBits(s_events, BIT_CONNECTED | BIT_GOT_IP);
+#if CONFIG_HOMEHUB_GADGET_CLOCK
+        gadget_clock_wifi_up();
+#endif
     }
 }
 

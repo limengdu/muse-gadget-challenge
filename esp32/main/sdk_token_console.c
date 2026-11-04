@@ -16,6 +16,7 @@
 
 #include "sdk_token_console.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -41,7 +42,33 @@ static const char *TAG = "link.sdk_token";
 
 #define COMMAND "sdk_token="
 // A command line: '>', the command and a token, with room to spare.
+#if CONFIG_HOMEHUB_GADGET_EVENTS
+#define COMMAND_LINE_MAX 544
+#else
 #define COMMAND_LINE_MAX 96
+#endif
+
+static _Atomic(sdk_token_console_line_handler) s_handlers[4];
+
+bool sdk_token_console_register_handler(sdk_token_console_line_handler handler) {
+    if (!handler) return false;
+    for (unsigned i = 0; i < sizeof(s_handlers) / sizeof(s_handlers[0]); i++) {
+        sdk_token_console_line_handler expected = NULL;
+        if (atomic_load(&s_handlers[i]) == handler) return true;
+        if (atomic_compare_exchange_strong(&s_handlers[i], &expected, handler)) return true;
+    }
+    return false;
+}
+
+bool sdk_token_console_dispatch(const char *line) {
+    if (!line) return false;
+    if (sdk_token_console_command(line)) return true;
+    for (unsigned i = 0; i < sizeof(s_handlers) / sizeof(s_handlers[0]); i++) {
+        sdk_token_console_line_handler handler = atomic_load(&s_handlers[i]);
+        if (handler && handler(line)) return true;
+    }
+    return false;
+}
 
 bool sdk_token_console_command(const char *line) {
     if (strncmp(line, COMMAND, strlen(COMMAND)) != 0) return false;
@@ -85,7 +112,7 @@ static void feed(line_reader_t *r, char c) {
         return;
     }
     r->buf[r->len] = '\0';
-    if (!r->overflow && r->buf[0] == '>') sdk_token_console_command(r->buf + 1);
+    if (!r->overflow && r->buf[0] == '>') sdk_token_console_dispatch(r->buf + 1);
     r->len = 0;
     r->overflow = false;
 }

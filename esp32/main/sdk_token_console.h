@@ -35,3 +35,9 @@ bool sdk_token_console_command(const char *line);
 // which mirrors the log, so the token can come in on whichever the browser
 // opened.
 void sdk_token_console_start(void);
+
+// Registers an additional line handler during startup, after the token handler.
+// 在启动期间注册额外的行处理器，在令牌处理器之后调用。
+typedef bool (*sdk_token_console_line_handler)(const char *line);
+bool sdk_token_console_register_handler(sdk_token_console_line_handler handler);
+bool sdk_token_console_dispatch(const char *line);
