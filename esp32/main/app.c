@@ -76,11 +76,11 @@
 #if CONFIG_HOMEHUB_VOICE
 #include "voice.h"
 #endif
-#if CONFIG_HOMEHUB_SENSECAP_SENSORS
+#if CONFIG_HOMEHUB_SENSECAP_SENSORS && !CONFIG_HOMEHUB_AIR_GUARDIAN
 #include "sensecap_sensors.h"
+#endif
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
 #include "air_guardian.h"
-#endif
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
 #include "reterminal_sht4x.h"
@@ -1889,8 +1889,7 @@ static cJSON *on_ws_command(
     }
 #endif
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-    if (strcmp(command, "sensors.history") == 0 || strcmp(command, "air.set_thresholds") == 0
-        || strcmp(command, "air.status") == 0 || strcmp(command, "air.set_view") == 0) {
+    if (strcmp(command, "air.update") == 0 || strcmp(command, "air.status") == 0 || strcmp(command, "air.set_view") == 0) {
         return air_guardian_command(command, params, request_id, session_generation);
     }
 #endif
@@ -1957,7 +1956,7 @@ static cJSON *on_ws_command(
         return voice_configure_command(params);
     }
 #endif
-#if CONFIG_HOMEHUB_SENSECAP_SENSORS
+#if CONFIG_HOMEHUB_SENSECAP_SENSORS && !CONFIG_HOMEHUB_AIR_GUARDIAN
     if (strcmp(command, "sensors.read") == 0) {
         return sensecap_sensors_command();
     }
@@ -2794,7 +2793,7 @@ void app_run(void) {
 #if CONFIG_HOMEHUB_VOICE
     voice_init();
 #endif
-#if CONFIG_HOMEHUB_SENSECAP_SENSORS
+#if CONFIG_HOMEHUB_SENSECAP_SENSORS && !CONFIG_HOMEHUB_AIR_GUARDIAN
     sensecap_sensors_init();
 #endif
 #if CONFIG_HOMEHUB_AIR_GUARDIAN

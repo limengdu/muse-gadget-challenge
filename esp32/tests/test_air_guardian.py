@@ -42,32 +42,26 @@ class AirGuardian(unittest.TestCase):
         if case == "size":
             print(result.stdout.strip())
 
-    def test_history_ring_bucketing_and_gaps(self):
-        self.check("history")
-
-    def test_hysteresis_cooldown_recovery_and_queue_retry(self):
-        self.check("thresholds")
-
-    def test_each_threshold(self):
-        self.check("all_thresholds")
-
-    def test_high_and_low_share_metric_cooldown(self):
-        self.check("alternating")
-
-    def test_auto_night_boundaries(self):
-        self.check("views")
-
-    def test_all_command_validation_and_atomic_save(self):
+    def test_complete_snapshot_validation_and_atomic_update(self):
         self.check("validation")
 
-    def test_history_response_bound_and_clock_basis(self):
-        self.check("size")
+    def test_aqi_categories_and_optional_pm25(self):
+        self.check("boundaries")
+
+    def test_versioned_record_restore_and_failed_save(self):
+        self.check("persistence")
+
+    def test_three_views(self):
+        self.check("views")
+
+    def test_status_age_missing_clock_and_refresh(self):
+        self.check("status")
 
     def test_native_previews(self):
         self.check("previews")
         if os.environ.get("CARD_PREVIEW_DIR"):
-            for view in ("ambient", "numbers", "night", "alert"):
-                path = Path(os.environ["CARD_PREVIEW_DIR"]) / f"air_{view}.ppm"
+            for view in ("good", "moderate", "unhealthy", "night"):
+                path = Path(os.environ["CARD_PREVIEW_DIR"]) / f"outdoor_{view}.ppm"
                 self.assertTrue(path.read_bytes().startswith(b"P6\n480 480\n255\n"))
                 self.assertEqual(path.stat().st_size, 480 * 480 * 3 + 15)
 
@@ -127,7 +121,7 @@ static uint8_t to_full_scale(uint8_t v) {return v;}
 static uint16_t lcd_px(rgb_t c) {(void)c;return 0xffff;}
 static const rgb_t COLOR_OFF={0,0,0};
 static void *s_panel=(void *)1,*s_mutex=(void *)1,*s_lcd_lock=(void *)1;
-static atomic_bool s_air_ready;
+static atomic_bool s_air_ready,s_air_online;
 static bool s_air_drawn,s_air_was_ready,s_image_mode,s_title_dirty,s_bars_drawn,s_dot_drawn;
 static led_state_t s_state;
 static uint16_t s_anim_buf[480*23];
@@ -152,14 +146,16 @@ int main(void) {
     assert(!led_status_air_draw(&pixel));
     led_status_show_animation();assert(!s_image_mode && s_title_dirty);
     assert(led_status_air_draw(&pixel));
+    assert(lcd_draw_image_rect(0,0,1,1,&pixel));
     led_status_set_state(LED_STATE_WS_DISCONNECTED);lcd_air_sync_state();
-    assert(!s_air_drawn && !s_air_ready && !s_image_mode);
-    assert(!led_status_air_draw(&pixel));
+    assert(s_air_ready && !s_air_online && !s_image_mode);
+    assert(led_status_air_draw(&pixel));
     assert(!lcd_draw_image_rect(0,0,1,1,&pixel) && !s_image_mode);
-    led_status_set_state(LED_STATE_PAIRING_CONFIRM_REQUIRED);assert(!s_air_ready);
-    led_status_set_state(LED_STATE_ERROR);assert(!s_air_ready);
+    led_status_set_state(LED_STATE_WIFI_CONNECTING);lcd_air_sync_state();assert(led_status_air_draw(&pixel));
+    led_status_set_state(LED_STATE_PAIRING_CONFIRM_REQUIRED);lcd_air_sync_state();assert(!s_air_ready && !s_air_drawn);
+    led_status_set_state(LED_STATE_ERROR);lcd_air_sync_state();assert(!s_air_ready);
     led_status_set_state(LED_STATE_WS_CONNECTED);lcd_air_sync_state();assert(led_status_air_draw(&pixel));
-    assert(clears==3);return 0;
+    assert(clears==5);return 0;
 }
 ''')
             binary = compile_host(out, [harness], flags=["-DCONFIG_HOMEHUB_AIR_GUARDIAN=1",
@@ -176,14 +172,22 @@ int main(void) {
         self.assertIn('open_setup_window("button short-press")', block)
         self.assertIn('reset_setup_from_control("button long-press")', source)
 
+    def test_outdoor_app_has_no_sensor_or_event_dependency(self):
+        source = (ROOT / "main/air_guardian.c").read_text()
+        for text in ("sensecap_sensors", "sensors.read", "gadget_events", "air_core_observe", "history"):
+            self.assertNotIn(text, source)
+        config = (ROOT / "main/Kconfig.projbuild").read_text()
+        block = config.split("config HOMEHUB_AIR_GUARDIAN\n", 1)[1].split("config ", 1)[0]
+        self.assertNotIn("HOMEHUB_SENSECAP_SENSORS", block)
+
     def test_assets_and_board_option(self):
         cmake = (ROOT / "main/CMakeLists.txt").read_text()
         block = cmake.split("if(CONFIG_HOMEHUB_CARD_ASSETS)", 1)[1].split("endif()", 1)[0]
         self.assertIn('"card_fonts.c" "card_icons.c"', block)
         config = (ROOT / "main/Kconfig.projbuild").read_text()
         block = config.split("config HOMEHUB_AIR_GUARDIAN\n", 1)[1].split("config ", 1)[0]
-        for text in ("default n", "HOMEHUB_SENSECAP_SENSORS", "select HOMEHUB_CARD_ASSETS",
-                     "select HOMEHUB_GADGET_CLOCK", "select HOMEHUB_GADGET_EVENTS"):
+        for text in ("default n", "HOMEHUB_LED_BACKEND_SENSECAP_ST7701", "select HOMEHUB_CARD_ASSETS",
+                     "select HOMEHUB_GADGET_CLOCK", "SenseCAP Indicator D1"):
             self.assertIn(text, block)
         overlays = list((ROOT / "devices").glob("sdkconfig.*"))
         enabled = [p.name for p in overlays if "CONFIG_HOMEHUB_AIR_GUARDIAN=y" in p.read_text()]
@@ -192,7 +196,7 @@ int main(void) {
     def test_advertisement_dispatch_and_register_bound(self):
         noise = (ROOT / "main/noise_control.cpp").read_text()
         app = (ROOT / "main/app.c").read_text()
-        commands = ("sensors.history", "air.set_thresholds", "air.status", "air.set_view")
+        commands = ("air.update", "air.status", "air.set_view")
         for command in commands:
             for source, marker in ((noise, f'add_command(commands, "{command}"'),
                                    (app, f'"{command}"')):
@@ -235,13 +239,16 @@ int main() {
     char *json=build_register_json(); assert(json && strlen(json)<8192);
     cJSON *root=cJSON_Parse(json);
     cJSON *commands=cJSON_GetObjectItem(cJSON_GetObjectItem(root,"params"),"commands_v2");
-    const char *names[]={"sensors.history","air.set_thresholds","air.status","air.set_view"};
+    const char *names[]={"air.update","air.status","air.set_view"};
     for (auto name:names) {
         assert((cJSON_GetObjectItem(commands,name)!=nullptr)==CONFIG_HOMEHUB_AIR_GUARDIAN);
         cJSON *r=dispatch(name,nullptr,"req",1);
         assert((r!=nullptr)==CONFIG_HOMEHUB_AIR_GUARDIAN); cJSON_Delete(r);
     }
-    printf("registration Air Guardian=%d: %zu bytes\n",CONFIG_HOMEHUB_AIR_GUARDIAN,strlen(json));
+    assert(cJSON_GetObjectItem(commands,"sensors.history")==nullptr);
+    assert(cJSON_GetObjectItem(commands,"air.set_thresholds")==nullptr);
+    assert((cJSON_GetObjectItem(commands,"sensors.read")==nullptr)==CONFIG_HOMEHUB_AIR_GUARDIAN);
+    printf("registration Outdoor Air=%d: %zu bytes\n",CONFIG_HOMEHUB_AIR_GUARDIAN,strlen(json));
     cJSON_Delete(root);free(json);
 }
 ''')

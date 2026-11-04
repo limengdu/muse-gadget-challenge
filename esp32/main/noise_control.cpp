@@ -1489,7 +1489,7 @@ static char *build_register_json(void) {
             bits == 4 ? 120000 : 60000);
         add_command(commands, "display.show_animation",
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-                    "Clear the image and return to the Air Guardian dashboard when connected.",
+                    "Clear the image and return to the Outdoor Air dashboard when connected.",
 #else
                     epaper ? "Clear the image and bring back the status screen "
                            "and the agent's name."
@@ -1539,7 +1539,7 @@ static char *build_register_json(void) {
                 nullptr, volume_optional);
 #endif
 
-#if CONFIG_HOMEHUB_SENSECAP_SENSORS
+#if CONFIG_HOMEHUB_SENSECAP_SENSORS && !CONFIG_HOMEHUB_AIR_GUARDIAN
     add_command(commands, "sensors.read",
                 "Read the air sensors: CO2 in ppm, the tVOC index (1-500, 100 "
                 "is typical), temperature in degrees Celsius and relative "
@@ -1549,34 +1549,31 @@ static char *build_register_json(void) {
                 nullptr, nullptr);
 #endif
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-    cJSON *history_params = cJSON_CreateObject();
-    const char *history_keys[] = {"hours", "step_min"};
-    const char *history_desc[] = {"Integer 1..168; default 24.", "Integer 1..10080; raised to cap at 24 points."};
+    cJSON *air_required = cJSON_CreateObject();
+    cJSON_AddItemToObject(air_required, "category", string_param(
+        "US EPA category: good, moderate, unhealthy_sensitive, unhealthy, very_unhealthy or hazardous. Must match AQI when provided."));
+    cJSON_AddItemToObject(air_required, "advice", string_param("Short outdoor advice, 1..80 printable ASCII characters."));
+    cJSON *air_time = cJSON_CreateObject();
+    cJSON_AddStringToObject(air_time, "type", "integer");
+    cJSON_AddStringToObject(air_time, "description", "Observation UTC Unix seconds, 1704067200..4102444799; use the source timestamp.");
+    cJSON_AddItemToObject(air_required, "updated_utc", air_time);
+    cJSON *air_optional = cJSON_CreateObject();
+    const char *air_keys[] = {"aqi", "pm25"};
+    const char *air_desc[] = {"US EPA AQI, integer 0..500. Supply AQI or PM2.5, or both.",
+                              "Outdoor PM2.5 in ug/m3, number 0..1000. Supply AQI or PM2.5, or both."};
     for (int i = 0; i < 2; i++) {
         cJSON *p = cJSON_CreateObject();
-        cJSON_AddStringToObject(p, "type", "integer");
-        cJSON_AddStringToObject(p, "description", history_desc[i]);
-        cJSON_AddItemToObject(history_params, history_keys[i], p);
+        cJSON_AddStringToObject(p, "type", i == 0 ? "integer" : "number");
+        cJSON_AddStringToObject(p, "description", air_desc[i]);
+        cJSON_AddItemToObject(air_optional, air_keys[i], p);
     }
-    add_command(commands, "sensors.history", "Air history: timestamps and per-metric [min,avg,max,count] arrays; null gaps. RAM, seven days.",
-                nullptr, history_params);
-    cJSON *threshold_params = cJSON_CreateObject();
-    const char *threshold_keys[] = {"co2_ppm", "tvoc", "temp_high_c", "temp_low_c", "humidity_high", "humidity_low"};
-    const char *threshold_desc[] = {"Integer 400..10000 ppm.", "Integer 1..500 index.", "-40..85 C; at least low+2.",
-                                   "-40..85 C.", "0..100 percent; at least low+10.", "0..100 percent."};
-    for (int i = 0; i < 6; i++) {
-        cJSON *p = cJSON_CreateObject();
-        cJSON_AddStringToObject(p, "type", "number");
-        cJSON_AddStringToObject(p, "description", threshold_desc[i]);
-        cJSON_AddItemToObject(threshold_params, threshold_keys[i], p);
-    }
-    cJSON_AddItemToObject(threshold_params, "room", string_param("Room label, 1..40 printable ASCII characters."));
-    add_command(commands, "air.set_thresholds", "Save any subset of room limits. Hysteresis; 30-minute alert cooldown and recovery events.",
-                nullptr, threshold_params);
-    add_command(commands, "air.status", "Current room readings, levels, limits, view and last saved alert per threshold.", nullptr, nullptr);
+    cJSON_AddItemToObject(air_optional, "place", string_param("Optional city or place label, 1..40 printable ASCII characters."));
+    add_command(commands, "air.update", "Save a complete Muse-sourced outdoor air snapshot for SenseCAP Indicator D1. Look up the owner's outdoor air with your tools first.",
+                air_required, air_optional);
+    add_command(commands, "air.status", "Read the saved outdoor snapshot, observation age_s (null until clock known), refresh_needed and view. Source is Muse.", nullptr, nullptr);
     cJSON *view_params = cJSON_CreateObject();
-    cJSON_AddItemToObject(view_params, "view", string_param("ambient, numbers, night or auto (22:00-07:00 local)."));
-    add_command(commands, "air.set_view", "Save the dashboard view.", view_params, nullptr);
+    cJSON_AddItemToObject(view_params, "view", string_param("ambient, numbers or night."));
+    add_command(commands, "air.set_view", "Save the Outdoor Air dashboard view.", view_params, nullptr);
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
     add_command(commands, "sensors.read",

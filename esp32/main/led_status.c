@@ -407,7 +407,7 @@ static bool s_dot_drawn = false;
 // An image from led_status_draw_rect() replaces the animation and title.
 static bool s_image_mode = false;
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-static atomic_bool s_air_ready;
+static atomic_bool s_air_ready, s_air_online;
 static bool s_air_drawn, s_air_was_ready;
 #endif
 static const uint8_t s_dot_rows[LCD_DOT_CELLS] = {0x6, 0xf, 0xf, 0x6};
@@ -1093,6 +1093,11 @@ static void lcd_air_sync_state(void) {
         s_image_mode = false;
         lcd_clear_rows(0, LCD_V_RES);
     }
+    if (ready && !atomic_load(&s_air_online) && s_image_mode) {
+        s_image_mode = false;
+        s_air_drawn = false;
+        lcd_clear_rows(0, LCD_V_RES);
+    }
     s_air_was_ready = ready;
     xSemaphoreGive(s_lcd_lock);
 }
@@ -1205,7 +1210,10 @@ void led_status_set_state(led_state_t state) {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_state = state;
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-    atomic_store(&s_air_ready, state == LED_STATE_WS_CONNECTED);
+    atomic_store(&s_air_online, state == LED_STATE_WS_CONNECTED);
+    atomic_store(&s_air_ready, state == LED_STATE_WS_CONNECTED || state == LED_STATE_WS_DISCONNECTED
+        || state == LED_STATE_WIFI_CONNECTING || state == LED_STATE_WIFI_CONNECTED
+        || state == LED_STATE_AUTH_OK || state == LED_STATE_VM_OK || state == LED_STATE_VM_SWITCHING);
 #endif
     xSemaphoreGive(s_mutex);
 }
@@ -1282,7 +1290,7 @@ void led_status_draw_done(void) {
 static bool lcd_draw_image_rect(int x, int y, int w, int h, const void *pixels) {
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
-    if (!atomic_load(&s_air_ready)) {
+    if (!atomic_load(&s_air_online)) {
         xSemaphoreGive(s_lcd_lock);
         return false;
     }

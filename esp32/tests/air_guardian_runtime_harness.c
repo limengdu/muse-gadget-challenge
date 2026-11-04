@@ -21,12 +21,12 @@
 #include "../main/air_guardian.c"
 
 static air_request_t pending;
-static bool queued, reject_queue, reject_task;
+static bool queued, reject_queue, reject_task, reject_store;
 static TaskFunction_t worker;
 static jmp_buf done;
-static int iterations, draws, posted;
+static int iterations, draws;
 static int64_t fake_time = 10000000;
-static char stored[512], stored_alerts[3072];
+static char stored[1024];
 static cJSON *reply;
 static noise_ctrl_session_generation_t reply_generation;
 static char reply_id[96];
@@ -39,7 +39,7 @@ BaseType_t xQueueSend(QueueHandle_t q,const void *p,TickType_t wait) {
     pending = *(const air_request_t *)p; queued = true; return pdTRUE;
 }
 BaseType_t xQueueReceive(QueueHandle_t q,void *p,TickType_t wait) {
-    assert(q && wait == 1000);
+    assert(q && wait == 5000);
     if (iterations++) longjmp(done, 1);
     if (!queued) return pdFALSE;
     *(air_request_t *)p = pending; queued = false; return pdTRUE;
@@ -51,25 +51,19 @@ BaseType_t xTaskCreate(TaskFunction_t fn,const char *name,unsigned stack,void *a
 }
 int64_t esp_timer_get_time(void) {return fake_time;}
 bool config_get_str(const char *key,char *out,size_t n) {
-    const char *value = !strcmp(key,"air_settings") ? stored : stored_alerts;
-    if (!value[0]) return false;
-    snprintf(out,n,"%s",value); return true;
+    assert(!strcmp(key,"outdoor_air"));
+    if (!stored[0]) return false;
+    snprintf(out,n,"%s",stored); return true;
 }
 bool config_set_str(const char *key,const char *value) {
-    if (!strcmp(key,"air_settings")) snprintf(stored,sizeof(stored),"%s",value);
-    else {assert(!strcmp(key,"air_alerts")); snprintf(stored_alerts,sizeof(stored_alerts),"%s",value);}
-    return true;
+    assert(!strcmp(key,"outdoor_air"));
+    if (reject_store) return false;
+    snprintf(stored,sizeof(stored),"%s",value); return true;
 }
 bool gadget_clock_valid(void) {return true;}
-int64_t gadget_clock_epoch(void) {return 1760000000;}
-int gadget_clock_minutes_of_day(void) {return 23*60;}
-bool gadget_events_post(const char *source,const char *summary,const cJSON *data) {
-    assert(!strcmp(source,"Air Guardian") && summary && data); posted++; return true;
-}
+int64_t gadget_clock_epoch(void) {return 1793793600;}
+int gadget_clock_minutes_of_day(void) {return 20*60;}
 bool led_status_air_draw(const uint16_t *pixels) {assert(pixels);draws++;return true;}
-cJSON *sensecap_sensors_command(void) {
-    return cJSON_Parse("{\"ok\":true,\"payload\":{\"co2\":{\"value\":1600},\"tvoc\":{\"value\":100},\"temperature\":{\"value\":23},\"humidity\":{\"value\":45}}}");
-}
 void noise_ctrl_send_command_result(noise_ctrl_session_generation_t generation,const char *id,cJSON *result) {
     cJSON_Delete(reply);reply=result;reply_generation=generation;snprintf(reply_id,sizeof(reply_id),"%s",id);
 }
@@ -79,24 +73,25 @@ int main(void) {
     assert(!cJSON_IsTrue(cJSON_GetObjectItem(r,"ok")));cJSON_Delete(r);
     reject_task=true;assert(!air_guardian_init() && !s_requests);
     reject_task=false;assert(air_guardian_init());
-    cJSON *params=cJSON_Parse("{\"room\":\"Nursery\",\"co2_ppm\":1700}");
-    r=air_guardian_command("air.set_thresholds",params,"request-17",17);
+    cJSON *params=cJSON_Parse("{\"aqi\":42,\"category\":\"good\",\"advice\":\"Source advice\",\"place\":\"Home city\",\"updated_utc\":1793793600}");
+    r=air_guardian_command("air.update",params,"request-17",17);
     assert(cJSON_IsTrue(cJSON_GetObjectItem(r,"_async")));cJSON_Delete(r);cJSON_Delete(params);
     tick();assert(reply_generation==17 && !strcmp(reply_id,"request-17"));
-    assert(cJSON_IsTrue(cJSON_GetObjectItem(reply,"ok")) && strstr(stored,"Nursery") && draws==1);
-    assert(!strcmp(s_core.settings.room,"Nursery"));
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(reply,"ok")) && strstr(stored,"Home city") && draws==1);
+    assert(s_core.snapshot.present && s_core.snapshot.aqi==42);
     reject_queue=true;r=air_guardian_command("air.status",NULL,"req",1);
     assert(cJSON_IsFalse(cJSON_GetObjectItem(r,"ok")));cJSON_Delete(r);reject_queue=false;
-    air_guardian_cycle_view();tick();assert(s_core.settings.view==AIR_NUMBERS && strstr(stored,"numbers"));
-    s_core.settings.view=AIR_NIGHT;strcpy(s_core.settings.room,"Reset");restore();
-    assert(s_core.settings.view==AIR_NUMBERS && !strcmp(s_core.settings.room,"Nursery"));
-    strcpy(stored,"{\"room\":\"Changed\",\"co2_ppm\":0,\"view\":\"auto\"}");restore();
-    assert(s_core.settings.view==AIR_NUMBERS && !strcmp(s_core.settings.room,"Nursery"));
-    fake_time+=6000000;tick();assert(s_core.valid==15 && s_core.count>=1 && posted==0);
-    s_core.settings.limits[0]=1500;fake_time+=6000000;tick();
-    assert(posted==1 && stored_alerts[0]);
-    memset(s_core.alarms,0,sizeof(s_core.alarms));restore_alerts();
-    assert(s_core.alarms[0].announced && strstr(s_core.alarms[0].last_message,"Nursery"));
-    strcpy(stored_alerts,"[]");restore_alerts();assert(s_core.alarms[0].announced);
-    cJSON_Delete(reply);free(s_core.history);free(s_pixels);puts("ok");return 0;
+    air_guardian_cycle_view();tick();assert(s_core.view==AIR_NUMBERS && strstr(stored,"numbers"));
+    air_guardian_cycle_view();tick();assert(s_core.view==AIR_NIGHT);
+    air_guardian_cycle_view();tick();assert(s_core.view==AIR_AMBIENT);
+    air_core_init(&s_core);restore();
+    assert(s_core.view==AIR_AMBIENT && s_core.snapshot.aqi==42 && !strcmp(s_core.snapshot.place,"Home city"));
+    reject_store=true;air_guardian_cycle_view();tick();assert(s_core.view==AIR_AMBIENT);reject_store=false;
+    strcpy(stored,"{\"version\":1,\"view\":\"night\",\"snapshot\":{}} ");restore();
+    assert(s_core.view==AIR_AMBIENT && s_core.snapshot.aqi==42);
+    strcpy(stored,"{\"version\":1,\"view\":\"night\",\"snapshot\":null}junk");restore();
+    assert(s_core.view==AIR_AMBIENT && s_core.snapshot.aqi==42);
+    fake_time+=6000000;tick();assert(s_core.snapshot.aqi==42);
+    r=air_guardian_command(NULL,NULL,"req",1);assert(cJSON_IsFalse(cJSON_GetObjectItem(r,"ok")));cJSON_Delete(r);
+    cJSON_Delete(reply);free(s_pixels);puts("ok");return 0;
 }

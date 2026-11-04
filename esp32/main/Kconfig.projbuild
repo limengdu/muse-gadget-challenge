@@ -527,15 +527,14 @@ menu "ESP32 Device SDK"
             RP2040 firmware.
 
     config HOMEHUB_AIR_GUARDIAN
-        bool "Air Guardian dashboard and room alerts"
-        depends on HOMEHUB_SENSECAP_SENSORS && HOMEHUB_DAEMON_REQUESTS && SPIRAM
+        bool "Outdoor Air advisor for SenseCAP Indicator D1"
+        depends on HOMEHUB_LED_BACKEND_SENSECAP_ST7701 && HOMEHUB_DAEMON_REQUESTS && SPIRAM
         select HOMEHUB_CARD_ASSETS
-        select HOMEHUB_GADGET_EVENTS
         select HOMEHUB_GADGET_CLOCK
         default n
         help
-            Keep seven days of minute samples in PSRAM, display room air,
-            and send threshold crossings and recoveries to Muse chat.
+            Display Muse-pushed outdoor air on SenseCAP Indicator D1.
+            Save the latest snapshot and ambient, numbers or night view in NVS.
 
     config HOMEHUB_RETERMINAL_SHT4X
         bool "reTerminal E100x or Sticky onboard SHT4x sensor (sensors.read)"

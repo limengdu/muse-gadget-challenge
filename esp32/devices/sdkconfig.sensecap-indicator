@@ -33,6 +33,7 @@ CONFIG_HOMEHUB_BUTTON_GPIO=38
 # Hardware: https://wiki.seeedstudio.com/SenseCAP_Indicator_Dive_into_the_Hardware/
 # Sensor protocol: https://github.com/Seeed-Solution/SenseCAP_Indicator_RP2040
 CONFIG_HOMEHUB_SENSECAP_SENSORS=y
+# D1 Outdoor Air app: Muse-pushed outdoor snapshots on the 3.95 inch LCD.
 CONFIG_HOMEHUB_AIR_GUARDIAN=y
 
 # 8 MB quad flash, as in the defaults.

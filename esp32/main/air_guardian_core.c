@@ -16,237 +16,145 @@
 
 #include "air_guardian_core.h"
 #include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-const char *const air_metric_names[AIR_METRICS] = {"co2", "tvoc", "temperature", "humidity"};
-const char *const air_limit_names[AIR_LIMITS] = {
-    "co2_ppm", "tvoc", "temp_high_c", "temp_low_c", "humidity_high", "humidity_low"
+const char *const air_view_names[AIR_VIEW_COUNT] = {"ambient", "numbers", "night"};
+const char *const air_category_names[AIR_CATEGORY_COUNT] = {
+    "good", "moderate", "unhealthy_sensitive", "unhealthy", "very_unhealthy", "hazardous"
 };
-const char *const air_view_names[4] = {"ambient", "numbers", "night", "auto"};
-static const int metric_for_limit[AIR_LIMITS] = {0, 1, 2, 2, 3, 3};
-static const float hysteresis[AIR_LIMITS] = {100, 25, 1, 1, 5, 5};
-static const float lower[AIR_LIMITS] = {400, 1, -40, -40, 0, 0};
-static const float upper[AIR_LIMITS] = {10000, 500, 85, 85, 100, 100};
-static const char *const metric_labels[AIR_METRICS] = {"CO2", "tVOC", "temperature", "humidity"};
-static const char *const units[AIR_METRICS] = {"ppm", "index", "C", "% RH"};
-static const char *const advice[AIR_LIMITS] = {
-    "Opening a window helps.", "Ventilate; check sources.",
-    "Cool room; check occupants.", "Warm room; check occupants.",
-    "Ventilate; reduce moisture.", "Check the room's humidity."
+const char *const air_category_labels[AIR_CATEGORY_COUNT] = {
+    "Good", "Moderate", "Sensitive groups", "Unhealthy", "Very unhealthy", "Hazardous"
 };
 
-void air_core_init(air_core_t *c, air_sample_t *storage) {
+void air_core_init(air_core_t *c) {
     memset(c, 0, sizeof(*c));
-    c->history = storage;
-    c->settings = (air_settings_t){{1000, 250, 28, 16, 65, 30}, "Living room", AIR_AMBIENT};
+    c->snapshot.aqi = -1;
+    c->snapshot.pm25 = -1;
 }
 
-// Keeps fresh, physically bounded values and records at most one sample per minute.
-// 保留新鲜且在物理范围内的读数，每分钟最多记录一次。
-void air_core_observe(air_core_t *c, const float values[AIR_METRICS], uint8_t valid, int64_t now_s) {
-    static const float lo[AIR_METRICS] = {0, 1, -40, 0};
-    static const float hi[AIR_METRICS] = {40000, 500, 85, 100};
-    c->valid = valid & 15;
-    for (int i = 0; i < AIR_METRICS; i++) {
-        if (!isfinite(values[i]) || values[i] < lo[i] || values[i] > hi[i]) c->valid &= ~(1u << i);
-        c->current[i] = (c->valid & (1u << i)) ? values[i] : 0;
-    }
-    if (!c->history || (c->sampled && now_s - c->sampled_s < 60)) return;
-    air_sample_t *s = &c->history[c->head];
-    *s = (air_sample_t){.time_s = now_s, .valid = c->valid};
-    memcpy(s->values, c->current, sizeof(s->values));
-    c->head = (c->head + 1) % AIR_MINUTES;
-    if (c->count < AIR_MINUTES) c->count++;
-    c->sampled = true;
-    c->sampled_s = now_s;
+static bool number(const cJSON *p, double lo, double hi, bool integer) {
+    return cJSON_IsNumber(p) && isfinite(p->valuedouble)
+        && p->valuedouble >= lo && p->valuedouble <= hi
+        && (!integer || floor(p->valuedouble) == p->valuedouble);
 }
 
-static bool low_limit(int i) { return i == 3 || i == 5; }
-
-// Sends one crossing and its matching recovery; failed queue attempts remain pending.
-// 发送一次越界及对应的恢复消息，入队失败的消息保持待发送状态。
-void air_core_evaluate(air_core_t *c, int64_t now_s, int64_t epoch, air_post_fn post, void *ctx) {
-    for (int i = 0; i < AIR_LIMITS; i++) {
-        int m = metric_for_limit[i];
-        if (!(c->valid & (1u << m))) continue;
-        air_alarm_t *a = &c->alarms[i];
-        float v = c->current[m], limit = c->settings.limits[i];
-        bool low = low_limit(i);
-        bool crossing = low ? v < limit : v > limit;
-        bool recovered = low ? v >= limit + hysteresis[i] : v <= limit - hysteresis[i];
-        if (!a->active && crossing) a->active = true;
-        if (a->active && recovered) a->active = false;
-        bool cooled_down = true;
-        for (int j = 0; j < AIR_LIMITS; j++) {
-            const air_alarm_t *other = &c->alarms[j];
-            if (metric_for_limit[j] == m && other->sent_before
-                && now_s - other->last_sent_s < AIR_COOLDOWN_S) cooled_down = false;
-        }
-        bool alert = a->active && !a->announced && cooled_down;
-        bool recovery = !a->active && a->announced;
-        if (!alert && !recovery) continue;
-        char summary[192];
-        if (alert) {
-            snprintf(summary, sizeof(summary), "%s %s is %.1f %s (%s limit %.1f). %s",
-                     c->settings.room, metric_labels[m], (double)v, units[m],
-                     low ? "low" : "high", (double)limit, advice[i]);
-        } else {
-            snprintf(summary, sizeof(summary), "%s is back to normal: %s %.1f %s.",
-                     c->settings.room, metric_labels[m], (double)v, units[m]);
-        }
-        cJSON *data = cJSON_CreateObject();
-        if (!data) continue;
-        cJSON_AddStringToObject(data, "kind", alert ? "alert" : "recovery");
-        cJSON_AddStringToObject(data, "metric", air_metric_names[m]);
-        cJSON_AddStringToObject(data, "threshold", air_limit_names[i]);
-        cJSON_AddStringToObject(data, "room", c->settings.room);
-        cJSON_AddNumberToObject(data, "value", v);
-        cJSON_AddNumberToObject(data, "limit", limit);
-        if (post && post(summary, data, ctx)) {
-            a->announced = alert;
-            if (alert) { a->last_sent_s = now_s; a->sent_before = true; }
-            a->last_event_time = epoch > 0 ? epoch : now_s;
-            a->last_event_epoch = epoch > 0;
-            snprintf(a->last_message, sizeof(a->last_message), "%s", summary);
-        }
-        cJSON_Delete(data);
-    }
-}
-
-// Buckets monotonic minute samples into a bounded window, retaining explicit gaps.
-// 将单调时钟记录的分钟样本合并到有界窗口，并保留明确的缺失区间。
-void air_core_buckets(const air_core_t *c, int hours, int step_min, int64_t now_s, air_buckets_t *out) {
-    memset(out, 0, sizeof(*out));
-    if (hours < 1 || hours > 168 || step_min < 1 || step_min > AIR_MINUTES) return;
-    int minimum_step = (hours * 60 + AIR_POINTS - 1) / AIR_POINTS;
-    out->step_min = step_min > minimum_step ? (unsigned)step_min : (unsigned)minimum_step;
-    out->count = (hours * 60 + out->step_min - 1) / out->step_min;
-    int64_t start = now_s - hours * 3600LL + 1;
-    for (unsigned b = 0; b < out->count; b++) out->times[b] = start + b * out->step_min * 60LL;
-    for (unsigned n = 0; n < c->count; n++) {
-        const air_sample_t *s = &c->history[(c->head + AIR_MINUTES - c->count + n) % AIR_MINUTES];
-        if (s->time_s < start || s->time_s > now_s) continue;
-        unsigned index = (unsigned)((s->time_s - start) / (out->step_min * 60LL));
-        if (index >= out->count) continue;
-        for (int m = 0; m < AIR_METRICS; m++) {
-            if (!(s->valid & (1u << m))) continue;
-            air_bucket_t *b = &out->metrics[m][index];
-            float value = s->values[m];
-            if (!b->count || value < b->min) b->min = value;
-            if (!b->count || value > b->max) b->max = value;
-            b->avg += value;
-            b->count++;
-        }
-    }
-    for (int m = 0; m < AIR_METRICS; m++)
-        for (unsigned n = 0; n < out->count; n++) {
-            air_bucket_t *b = &out->metrics[m][n];
-            if (b->count) b->avg /= b->count;
-        }
-}
-
-air_view_t air_effective_view(air_view_t view, int minutes) {
-    return view == AIR_AUTO ? (minutes >= 22 * 60 || (minutes >= 0 && minutes < 7 * 60)
-        ? AIR_NIGHT : AIR_AMBIENT) : view;
-}
-
-int air_core_level(const air_core_t *c, int m) {
-    if (m < 0 || m >= AIR_METRICS || !(c->valid & (1u << m))) return -1;
-    for (int i = 0; i < AIR_LIMITS; i++) if (metric_for_limit[i] == m && c->alarms[i].active) return 3;
-    float v = c->current[m];
-    if (m < 2) {
-        float limit = c->settings.limits[m];
-        if (v > limit) return 3;
-        if (v >= limit * .9f) return 2;
-        if (v >= limit * .75f) return 1;
-    } else {
-        int hi = m == 2 ? 2 : 4, lo = hi + 1;
-        if (v > c->settings.limits[hi] || v < c->settings.limits[lo]) return 3;
-        if (v > c->settings.limits[hi] - hysteresis[hi]
-            || v < c->settings.limits[lo] + hysteresis[lo]) return 1;
-    }
-    return 0;
-}
-
-static int first_active(const air_core_t *c) {
-    for (int i = 0; i < AIR_LIMITS; i++) if (c->alarms[i].active) return i;
+static int name_index(const cJSON *p, const char *const *names, int count) {
+    if (!cJSON_IsString(p) || !p->valuestring) return -1;
+    for (int i = 0; i < count; i++) if (!strcmp(p->valuestring, names[i])) return i;
     return -1;
 }
 
-const char *air_core_mood(const air_core_t *c) {
-    if (!c->valid) return "Waiting for sensors";
-    if (c->alarms[2].active) return "Too warm";
-    if (c->alarms[3].active) return "Too cool";
-    if (c->alarms[0].active || c->alarms[1].active) return "Open a window";
-    if (c->alarms[4].active || c->alarms[5].active) return "Check humidity";
-    if (c->valid != 15) return "Sensors missing";
-    if (air_core_level(c, 0) > 0 || air_core_level(c, 1) > 0) return "Getting stuffy";
-    return "Fresh";
+static bool text(const cJSON *p, char *out, size_t cap) {
+    if (!cJSON_IsString(p) || !p->valuestring) return false;
+    size_t n = strlen(p->valuestring);
+    if (!n || n >= cap) return false;
+    bool visible = false;
+    for (size_t i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)p->valuestring[i];
+        if (ch < 32 || ch > 126) return false;
+        visible |= ch != ' ';
+    }
+    if (!visible) return false;
+    memcpy(out, p->valuestring, n + 1);
+    return true;
 }
 
-const char *air_core_advice(const air_core_t *c) {
-    int i = first_active(c);
-    if (i >= 0 && !(c->valid & (1u << metric_for_limit[i]))) return "Check the sensor connection.";
-    return i >= 0 ? advice[i] : c->valid != 15 ? "Check the sensor connection." : "Air Guardian";
-}
-
-static bool object_params(const cJSON *params) { return !params || cJSON_IsObject(params); }
-
-bool air_settings_parse(air_settings_t *out, const air_settings_t *base, const cJSON *params, bool view) {
-    if (!cJSON_IsObject(params) || !params->child) return false;
-    *out = *base;
+// Accepts one complete snapshot with unique fields and at least one outdoor metric.
+// 接收字段唯一且至少含一项户外指标的完整快照。
+bool air_snapshot_parse(air_snapshot_t *out, const cJSON *params) {
+    if (!cJSON_IsObject(params)) return false;
+    air_snapshot_t next = {.present = true, .aqi = -1, .pm25 = -1};
+    const char *const keys[] = {"aqi", "pm25", "category", "advice", "place", "updated_utc"};
     unsigned seen = 0;
     const cJSON *p;
     cJSON_ArrayForEach(p, params) {
-        if (!p->string) return false;
-        int key = -1;
-        for (int i = 0; i < AIR_LIMITS; i++) if (!strcmp(p->string, air_limit_names[i])) key = i;
-        if (!strcmp(p->string, "room")) key = AIR_LIMITS;
-        if (!strcmp(p->string, "view")) key = AIR_LIMITS + 1;
-        if (key < 0 || (view ? key != AIR_LIMITS + 1 : key == AIR_LIMITS + 1) || (seen & (1u << key))) return false;
-        seen |= 1u << key;
-        if (key < AIR_LIMITS) {
-            if (!cJSON_IsNumber(p) || !isfinite(p->valuedouble)
-                || p->valuedouble < lower[key] || p->valuedouble > upper[key]) return false;
-            if (key < 2 && floor(p->valuedouble) != p->valuedouble) return false;
-            out->limits[key] = (float)p->valuedouble;
-        } else if (key == AIR_LIMITS) {
-            if (!cJSON_IsString(p) || !p->valuestring || !p->valuestring[0]
-                || strlen(p->valuestring) >= AIR_ROOM_BYTES) return false;
-            bool visible = false;
-            for (const unsigned char *s = (const unsigned char *)p->valuestring; *s; s++) {
-                if (*s < 32 || *s > 126) return false;
-                visible |= *s != ' ';
-            }
-            if (!visible) return false;
-            strcpy(out->room, p->valuestring);
+        int k = -1;
+        for (int i = 0; i < 6; i++) if (p->string && !strcmp(p->string, keys[i])) k = i;
+        if (k < 0 || (seen & (1u << k))) return false;
+        seen |= 1u << k;
+        if (k == 0 || k == 1) {
+            if (cJSON_IsNull(p)) continue;
+            if (!number(p, 0, k == 0 ? 500 : 1000, k == 0)) return false;
+            if (k == 0) next.aqi = (int)p->valuedouble;
+            else next.pm25 = p->valuedouble;
+        } else if (k == 2) {
+            int category = name_index(p, air_category_names, AIR_CATEGORY_COUNT);
+            if (category < 0) return false;
+            next.category = (air_category_t)category;
+        } else if (k == 3) {
+            if (!text(p, next.advice, sizeof(next.advice))) return false;
+        } else if (k == 4) {
+            if (!text(p, next.place, sizeof(next.place))) return false;
         } else {
-            if (!cJSON_IsString(p) || !p->valuestring) return false;
-            int i;
-            for (i = 0; i < 4; i++) if (!strcmp(p->valuestring, air_view_names[i])) break;
-            if (i == 4) return false;
-            out->view = (air_view_t)i;
+            if (!number(p, AIR_MIN_EPOCH, AIR_MAX_EPOCH, true)) return false;
+            next.updated_utc = (int64_t)p->valuedouble;
         }
     }
-    return out->limits[2] >= out->limits[3] + 2 && out->limits[4] >= out->limits[5] + 10;
+    const unsigned required = (1u << 2) | (1u << 3) | (1u << 5);
+    if ((seen & required) != required || (next.aqi < 0 && next.pm25 < 0)) return false;
+    if (next.aqi >= 0) {
+        int category = next.aqi <= 50 ? AIR_GOOD : next.aqi <= 100 ? AIR_MODERATE
+            : next.aqi <= 150 ? AIR_SENSITIVE : next.aqi <= 200 ? AIR_UNHEALTHY
+            : next.aqi <= 300 ? AIR_VERY_UNHEALTHY : AIR_HAZARDOUS;
+        if (category != (int)next.category) return false;
+    }
+    *out = next;
+    return true;
 }
 
-cJSON *air_settings_json(const air_settings_t *s) {
+int64_t air_snapshot_age(const air_core_t *c, int64_t epoch) {
+    if (!c->snapshot.present || epoch < AIR_MIN_EPOCH || epoch > AIR_MAX_EPOCH
+        || epoch < c->snapshot.updated_utc) return -1;
+    return epoch - c->snapshot.updated_utc;
+}
+
+static cJSON *snapshot_json(const air_snapshot_t *s) {
+    if (!s->present) return cJSON_CreateNull();
     cJSON *p = cJSON_CreateObject();
-    if (!p) return NULL;
-    for (int i = 0; i < AIR_LIMITS; i++) {
-        if (!cJSON_AddNumberToObject(p, air_limit_names[i], s->limits[i])) {
-            cJSON_Delete(p);
-            return NULL;
-        }
-    }
-    if (!cJSON_AddStringToObject(p, "room", s->room)) {
-        cJSON_Delete(p);
-        return NULL;
-    }
+    bool ok = p && cJSON_AddItemToObject(p, "aqi", s->aqi >= 0 ? cJSON_CreateNumber(s->aqi) : cJSON_CreateNull())
+        && cJSON_AddItemToObject(p, "pm25", s->pm25 >= 0 ? cJSON_CreateNumber(s->pm25) : cJSON_CreateNull())
+        && cJSON_AddStringToObject(p, "category", air_category_names[s->category])
+        && cJSON_AddStringToObject(p, "advice", s->advice)
+        && (!s->place[0] || cJSON_AddStringToObject(p, "place", s->place))
+        && cJSON_AddNumberToObject(p, "updated_utc", (double)s->updated_utc);
+    if (!ok) { cJSON_Delete(p); return NULL; }
     return p;
+}
+
+cJSON *air_core_json(const air_core_t *c) {
+    cJSON *p = cJSON_CreateObject(), *snapshot = snapshot_json(&c->snapshot);
+    if (!p || !snapshot || !cJSON_AddNumberToObject(p, "version", 1)
+        || !cJSON_AddStringToObject(p, "view", air_view_names[c->view])) {
+        cJSON_Delete(snapshot); cJSON_Delete(p); return NULL;
+    }
+    cJSON_AddItemToObject(p, "snapshot", snapshot);
+    return p;
+}
+
+// Restores a validated versioned record atomically, including its selected view.
+// 原子恢复已校验的版本化记录及所选视图。
+bool air_core_restore(air_core_t *c, const cJSON *record) {
+    if (!cJSON_IsObject(record)) return false;
+    air_core_t next;
+    air_core_init(&next);
+    unsigned seen = 0;
+    const cJSON *p;
+    cJSON_ArrayForEach(p, record) {
+        int k = !strcmp(p->string, "version") ? 0 : !strcmp(p->string, "view") ? 1
+            : !strcmp(p->string, "snapshot") ? 2 : -1;
+        if (k < 0 || (seen & (1u << k))) return false;
+        seen |= 1u << k;
+        if (k == 0 && !number(p, 1, 1, true)) return false;
+        if (k == 1) {
+            int view = name_index(p, air_view_names, AIR_VIEW_COUNT);
+            if (view < 0) return false;
+            next.view = (air_view_t)view;
+        }
+        if (k == 2 && !cJSON_IsNull(p) && !air_snapshot_parse(&next.snapshot, p)) return false;
+    }
+    if (seen != 7) return false;
+    *c = next;
+    return true;
 }
 
 static cJSON *error_result(const char *code, const char *message) {
@@ -258,109 +166,49 @@ static cJSON *error_result(const char *code, const char *message) {
     return r;
 }
 
-static double decimal(float v) { return round((double)v * 10) / 10; }
-
-static cJSON *status_payload(const air_core_t *c, int minutes) {
-    cJSON *p = cJSON_CreateObject();
-    cJSON_AddStringToObject(p, "room", c->settings.room);
-    cJSON_AddStringToObject(p, "view", air_view_names[c->settings.view]);
-    cJSON_AddStringToObject(p, "effective_view", air_view_names[air_effective_view(c->settings.view, minutes)]);
-    cJSON_AddBoolToObject(p, "local_time_valid", minutes >= 0);
-    cJSON_AddStringToObject(p, "mood", air_core_mood(c));
-    cJSON_AddItemToObject(p, "thresholds", air_settings_json(&c->settings));
-    cJSON *values = cJSON_AddObjectToObject(p, "values");
-    cJSON *levels = cJSON_AddObjectToObject(p, "levels");
-    static const char *const names[] = {"fresh", "watch", "stuffy", "alert"};
-    for (int m = 0; m < AIR_METRICS; m++) {
-        int level = air_core_level(c, m);
-        if (level < 0) cJSON_AddNullToObject(values, air_metric_names[m]);
-        else {
-            cJSON *reading = cJSON_AddObjectToObject(values, air_metric_names[m]);
-            cJSON_AddNumberToObject(reading, "value", decimal(c->current[m]));
-            cJSON_AddStringToObject(reading, "unit", units[m]);
-        }
-        cJSON_AddStringToObject(levels, air_metric_names[m], level < 0 ? "missing" : names[level]);
-    }
-    cJSON *alerts = cJSON_AddArrayToObject(p, "last_alerts");
-    for (int i = 0; i < AIR_LIMITS; i++) {
-        const air_alarm_t *a = &c->alarms[i];
-        cJSON *e = cJSON_CreateObject();
-        cJSON_AddStringToObject(e, "threshold", air_limit_names[i]);
-        cJSON_AddBoolToObject(e, "active", a->active);
-        if (a->last_message[0]) {
-            cJSON_AddStringToObject(e, "summary", a->last_message);
-            cJSON_AddNumberToObject(e, "time", (double)a->last_event_time);
-            cJSON_AddStringToObject(e, "time_basis", a->last_event_epoch ? "epoch" : "uptime");
-        }
-        cJSON_AddItemToArray(alerts, e);
-    }
-    return p;
-}
-
-// Returns compact aligned arrays; each tuple is minimum, average, maximum and sample count.
-// 返回紧凑的对齐数组，每个元组依次为最小值、平均值、最大值与样本数。
-static cJSON *history_payload(const air_core_t *c, int hours, int step, int64_t now_s, int64_t epoch) {
-    air_buckets_t *b = malloc(sizeof(*b));
-    if (!b) return NULL;
-    air_core_buckets(c, hours, step, now_s, b);
-    cJSON *p = cJSON_CreateObject();
-    cJSON_AddStringToObject(p, "time_basis", epoch > 0 ? "epoch" : "uptime");
-    cJSON_AddNumberToObject(p, "hours", hours);
-    cJSON_AddNumberToObject(p, "step_min", b->step_min);
-    cJSON_AddStringToObject(p, "tuple", "min,avg,max,count");
-    cJSON *times = cJSON_AddArrayToObject(p, "timestamps");
-    for (unsigned n = 0; n < b->count; n++)
-        cJSON_AddItemToArray(times, cJSON_CreateNumber((double)(b->times[n] + (epoch > 0 ? epoch - now_s : 0))));
-    for (int m = 0; m < AIR_METRICS; m++) {
-        cJSON *array = cJSON_AddArrayToObject(p, air_metric_names[m]);
-        for (unsigned n = 0; n < b->count; n++) {
-            air_bucket_t *v = &b->metrics[m][n];
-            if (!v->count) { cJSON_AddItemToArray(array, cJSON_CreateNull()); continue; }
-            cJSON *tuple = cJSON_CreateArray();
-            cJSON_AddItemToArray(tuple, cJSON_CreateNumber(decimal(v->min)));
-            cJSON_AddItemToArray(tuple, cJSON_CreateNumber(decimal(v->avg)));
-            cJSON_AddItemToArray(tuple, cJSON_CreateNumber(decimal(v->max)));
-            cJSON_AddItemToArray(tuple, cJSON_CreateNumber(v->count));
-            cJSON_AddItemToArray(array, tuple);
-        }
-    }
-    free(b);
-    return p;
-}
-
+// Saves the complete candidate before publishing it as the current snapshot or view.
+// 完整保存候选记录后，再发布为当前快照或视图。
 cJSON *air_core_command(air_core_t *c, const char *command, const cJSON *params,
-                        int64_t now_s, int64_t epoch, int minutes, air_save_fn save, void *ctx) {
-    if (!object_params(params)) return error_result("invalid_params", "params must be an object");
-    cJSON *payload = NULL;
-    if (!strcmp(command, "air.set_thresholds") || !strcmp(command, "air.set_view")) {
-        air_settings_t next_settings;
-        bool view = !strcmp(command, "air.set_view");
-        if (!air_settings_parse(&next_settings, &c->settings, params, view))
-            return error_result("invalid_params", "Check parameter names, types, ranges and high/low limits");
-        if (!save || !save(&next_settings, ctx)) return error_result("storage_failed", "Settings could not be saved");
-        c->settings = next_settings;
-        payload = status_payload(c, minutes);
+                        int64_t epoch, air_save_fn save, void *ctx) {
+    if (!command || (params && !cJSON_IsObject(params)))
+        return error_result("invalid_params", "params must be an object");
+    air_core_t next = *c;
+    bool update = !strcmp(command, "air.update"), view = !strcmp(command, "air.set_view");
+    if (update) {
+        if (!air_snapshot_parse(&next.snapshot, params))
+            return error_result("invalid_params", "Provide US AQI or PM2.5, matching category, advice and updated_utc");
+        if (c->snapshot.present && next.snapshot.updated_utc < c->snapshot.updated_utc)
+            return error_result("older_snapshot", "Keep the most recent outdoor snapshot");
+        if (epoch >= AIR_MIN_EPOCH && epoch <= AIR_MAX_EPOCH && next.snapshot.updated_utc > epoch + 300)
+            return error_result("future_snapshot", "updated_utc is ahead of the device clock");
+    } else if (view) {
+        const cJSON *v = cJSON_GetObjectItemCaseSensitive(params, "view");
+        int index = name_index(v, air_view_names, AIR_VIEW_COUNT);
+        if (!cJSON_IsObject(params) || cJSON_GetArraySize(params) != 1 || index < 0)
+            return error_result("invalid_params", "view must be ambient, numbers or night");
+        next.view = (air_view_t)index;
     } else if (!strcmp(command, "air.status")) {
         if (params && params->child) return error_result("invalid_params", "air.status takes no parameters");
-        payload = status_payload(c, minutes);
-    } else if (!strcmp(command, "sensors.history")) {
-        int hours = 24, step = 1;
-        unsigned seen = 0;
-        const cJSON *p;
-        cJSON_ArrayForEach(p, params) {
-            int k = !strcmp(p->string, "hours") ? 0 : !strcmp(p->string, "step_min") ? 1 : -1;
-            if (k < 0 || (seen & (1u << k)) || !cJSON_IsNumber(p) || !isfinite(p->valuedouble)
-                || p->valuedouble < 1 || p->valuedouble > (k ? AIR_MINUTES : 168)
-                || floor(p->valuedouble) != p->valuedouble)
-                return error_result("invalid_params", "hours must be 1..168 and step_min 1..10080, both integers");
-            seen |= 1u << k;
-            if (!k) hours = (int)p->valuedouble; else step = (int)p->valuedouble;
-        }
-        payload = history_payload(c, hours, step, now_s, epoch);
-    } else return error_result("unsupported_command", "Unknown Air Guardian command");
-    if (!payload) return error_result("out_of_memory", "Air Guardian allocation failed");
+    } else return error_result("unsupported_command", "Unknown Outdoor Air command");
+    cJSON *payload = cJSON_CreateObject(), *snapshot = snapshot_json(&next.snapshot);
+    int64_t age = air_snapshot_age(&next, epoch);
+    bool ok = payload && snapshot && cJSON_AddStringToObject(payload, "source", "muse")
+        && cJSON_AddStringToObject(payload, "aqi_scale", "US EPA")
+        && cJSON_AddStringToObject(payload, "pm25_unit", "ug/m3")
+        && cJSON_AddStringToObject(payload, "view", air_view_names[next.view])
+        && cJSON_AddItemToObject(payload, "age_s", age >= 0 ? cJSON_CreateNumber((double)age) : cJSON_CreateNull())
+        && cJSON_AddBoolToObject(payload, "clock_valid", epoch >= AIR_MIN_EPOCH && epoch <= AIR_MAX_EPOCH)
+        && cJSON_AddBoolToObject(payload, "refresh_needed", age < 0 || age >= AIR_STALE_S);
+    if (!ok) { cJSON_Delete(payload); cJSON_Delete(snapshot); return error_result("out_of_memory", "Outdoor Air allocation failed"); }
+    cJSON_AddItemToObject(payload, "snapshot", snapshot);
     cJSON *result = cJSON_CreateObject();
-    cJSON_AddBoolToObject(result, "ok", true);
+    if (!result || !cJSON_AddBoolToObject(result, "ok", true)) {
+        cJSON_Delete(result); cJSON_Delete(payload); return error_result("out_of_memory", "Outdoor Air allocation failed");
+    }
     cJSON_AddItemToObject(result, "payload", payload);
+    if ((update || view) && (!save || !save(&next, ctx))) {
+        cJSON_Delete(result); return error_result("storage_failed", "Outdoor snapshot and view could not be saved");
+    }
+    *c = next;
     return result;
 }

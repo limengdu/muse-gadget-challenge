@@ -20,63 +20,40 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define AIR_METRICS 4
-#define AIR_LIMITS 6
-#define AIR_MINUTES (7 * 24 * 60)
-#define AIR_POINTS 24
-#define AIR_COOLDOWN_S (30 * 60)
-#define AIR_ROOM_BYTES 41
+#define AIR_ADVICE_BYTES 81
+#define AIR_PLACE_BYTES 41
+#define AIR_MIN_EPOCH 1704067200LL
+#define AIR_MAX_EPOCH 4102444799LL
+#define AIR_STALE_S (3 * 60 * 60)
 
-typedef enum { AIR_AMBIENT, AIR_NUMBERS, AIR_NIGHT, AIR_AUTO } air_view_t;
+typedef enum { AIR_AMBIENT, AIR_NUMBERS, AIR_NIGHT, AIR_VIEW_COUNT } air_view_t;
+typedef enum {
+    AIR_GOOD, AIR_MODERATE, AIR_SENSITIVE, AIR_UNHEALTHY,
+    AIR_VERY_UNHEALTHY, AIR_HAZARDOUS, AIR_CATEGORY_COUNT
+} air_category_t;
 typedef struct {
-    float limits[AIR_LIMITS];
-    char room[AIR_ROOM_BYTES];
+    bool present;
+    int aqi;
+    double pm25;
+    air_category_t category;
+    char advice[AIR_ADVICE_BYTES], place[AIR_PLACE_BYTES];
+    int64_t updated_utc;
+} air_snapshot_t;
+typedef struct {
+    air_snapshot_t snapshot;
     air_view_t view;
-} air_settings_t;
-typedef struct {
-    int64_t time_s;
-    float values[AIR_METRICS];
-    uint8_t valid;
-} air_sample_t;
-typedef struct {
-    bool active, announced, sent_before;
-    int64_t last_sent_s, last_event_time;
-    bool last_event_epoch;
-    char last_message[192];
-} air_alarm_t;
-typedef struct {
-    air_settings_t settings;
-    air_sample_t *history;
-    unsigned head, count;
-    bool sampled;
-    int64_t sampled_s;
-    float current[AIR_METRICS];
-    uint8_t valid;
-    air_alarm_t alarms[AIR_LIMITS];
 } air_core_t;
-typedef struct { float min, avg, max; unsigned count; } air_bucket_t;
-typedef struct {
-    unsigned count, step_min;
-    int64_t times[AIR_POINTS];
-    air_bucket_t metrics[AIR_METRICS][AIR_POINTS];
-} air_buckets_t;
-typedef bool (*air_post_fn)(const char *summary, const cJSON *data, void *ctx);
-typedef bool (*air_save_fn)(const air_settings_t *settings, void *ctx);
+typedef bool (*air_save_fn)(const air_core_t *state, void *ctx);
 
-extern const char *const air_metric_names[AIR_METRICS];
-extern const char *const air_limit_names[AIR_LIMITS];
-extern const char *const air_view_names[4];
-void air_core_init(air_core_t *c, air_sample_t *storage);
-void air_core_observe(air_core_t *c, const float values[AIR_METRICS], uint8_t valid, int64_t now_s);
-void air_core_evaluate(air_core_t *c, int64_t now_s, int64_t epoch, air_post_fn post, void *ctx);
-void air_core_buckets(const air_core_t *c, int hours, int step_min, int64_t now_s, air_buckets_t *out);
-air_view_t air_effective_view(air_view_t view, int minutes);
-int air_core_level(const air_core_t *c, int metric);
-const char *air_core_mood(const air_core_t *c);
-const char *air_core_advice(const air_core_t *c);
-bool air_settings_parse(air_settings_t *out, const air_settings_t *base, const cJSON *params, bool view);
-cJSON *air_settings_json(const air_settings_t *s);
+extern const char *const air_view_names[AIR_VIEW_COUNT];
+extern const char *const air_category_names[AIR_CATEGORY_COUNT];
+extern const char *const air_category_labels[AIR_CATEGORY_COUNT];
+void air_core_init(air_core_t *c);
+bool air_snapshot_parse(air_snapshot_t *out, const cJSON *params);
+int64_t air_snapshot_age(const air_core_t *c, int64_t epoch);
+cJSON *air_core_json(const air_core_t *c);
+bool air_core_restore(air_core_t *c, const cJSON *record);
 cJSON *air_core_command(air_core_t *c, const char *command, const cJSON *params,
-                        int64_t now_s, int64_t epoch, int minutes, air_save_fn save, void *ctx);
-void air_guardian_render(card_rgb565_t *canvas, const air_core_t *c, int64_t now_s,
-                         int minutes, bool pulse);
+                        int64_t epoch, air_save_fn save, void *ctx);
+void air_guardian_render(card_rgb565_t *canvas, const air_core_t *c,
+                         int64_t epoch, int local_minutes);

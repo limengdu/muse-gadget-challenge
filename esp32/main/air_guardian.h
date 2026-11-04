@@ -25,8 +25,8 @@ extern "C" {
 bool air_guardian_init(void);
 cJSON *air_guardian_command(const char *command, const cJSON *params, const char *request_id,
                             noise_ctrl_session_generation_t generation);
-// Presents a native RGB565 dashboard only while connected and images are inactive.
-// 仅在连接正常且未展示图片时呈现原生 RGB565 仪表盘。
+// Presents a native RGB565 dashboard during connected/reconnecting states while images are inactive.
+// 在已连接或重连期间且未展示图片时呈现原生 RGB565 仪表盘。
 bool led_status_air_draw(const uint16_t *pixels);
 // Queues the next persistent view on the application worker.
 // 将下一个需要持久保存的视图交给应用后台任务。

@@ -14,203 +14,122 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Air Guardian
+# Outdoor Air — SenseCAP Indicator D1
 
-[中文](README.zh-CN.md) · [Muse skill](SKILL.md) · [Validation](VALIDATION.md)
+[简体中文](README.zh-CN.md) · [Muse skill](SKILL.md) · [Validation](VALIDATION.md)
 
-A calm air display at home and a room sentinel in your own Muse chat. For a
-nursery, a pet's living room, an older relative's home or a home office, it
-turns readings into a glanceable answer and a practical next step. Ask from
-anywhere your Muse is available: “How is the baby's room?” or “How was the
-bedroom air last night?”
+A calm outdoor air advisor for the family at home. Muse looks up outdoor air
+for the owner's chosen place using its own tools and preferences, then pushes
+one snapshot to the D1's 3.95-inch, 480×480 LCD. The board retains the last good
+snapshot and selected view across restarts.
 
-## Hardware
+## Hardware and data
 
-Use a **SenseCAP Indicator D1S or D1Pro**, USB power and Wi-Fi. Keep Seeed's
-stock RP2040 firmware installed and connect the supplied **Grove AHT20** for
-temperature and humidity. CO2 and the tVOC index come from the onboard
-SCD41 and SGP40 through that RP2040. D1 and D1L have no built-in air sensors.
-Air Guardian reuses the existing UART reader, LCD pin map and top button.
+Supported hardware is **SenseCAP Indicator D1 only**, using the Link-only
+`tools/board.sh sensecap-indicator` profile. D1S and D1 Pro are outside this
+application's support scope. D1 has no onboard CO2/tVOC sensors. This project
+uses no indoor sensors, Grove AHT20, RP2040 readings or sensor UART data.
 
-See [Seeed hardware](https://wiki.seeedstudio.com/SenseCAP_Indicator_Dive_into_the_Hardware/)
-and [RP2040 source](https://github.com/Seeed-Solution/SenseCAP_Indicator_RP2040).
-Place the device in the room being watched, with air circulating around it,
-away from direct sunlight, heat sources and someone's exhaled breath.
+The shared board overlay keeps its existing `CONFIG_HOMEHUB_SENSECAP_SENSORS`
+setting for the base SDK. This app skips the UART reader and operates independently with every reading
+absent or null. While this app is enabled, registration exposes outdoor commands
+and omits the base indoor sensor command. There is no indoor history ring,
+on-device weather lookup, automatic refresh scheduler, or category notification.
+Muse owns lookups, routines and concise advice; the device quietly displays them.
 
-## Build, install and pair
+## Build
 
-From the repository's `esp32/` directory, using ESP-IDF **v6.0.1**:
+From `esp32/` with ESP-IDF **v6.0.1**:
 
 ```sh
 export IDF_PYTHON_ENV_PATH=$HOME/.espressif/python_env/idf6.0_py3.14_env
-. ~/esp/esp-idf/export.sh
-tools/board.sh sensecap-indicator build
-idf.py -B build-sensecap-indicator menuconfig
 tools/board.sh sensecap-indicator build
 ```
 
-In menuconfig set your private SDK token under **ESP32 Device SDK**. Obtain
-it from Muse's **Account > SDK tokens**; the build's ignored `sdkconfig`
-holds it. The Indicator overlay enables `HOMEHUB_AIR_GUARDIAN`, its sensor
-reader, device events, local clock and shared card assets. Other overlays
-keep Air Guardian off. Existing generated configurations keep their previous
-values; enable Air Guardian in menuconfig when reusing one.
+The overlay enables the opt-in `CONFIG_HOMEHUB_AIR_GUARDIAN` app flag, the local
+clock and shared card assets. Its Kconfig dependency is the Indicator LCD,
+PSRAM and daemon requests. Internal `air_guardian_*` filenames and this folder
+retain their existing paths. Configure device credentials privately in the
+ignored build directory using `idf.py -B build-sensecap-indicator menuconfig`.
+Hardware deployment follows the SDK's [device guide](../../esp32/AGENTS.md).
 
-Before the first installation, back up the board using the [repository's
-backup instructions](../../AGENTS.md#credentials-and-backups). Then run:
+## Muse setup
 
-```sh
-tools/board.sh sensecap-indicator flash
-```
+Give [SKILL.md](SKILL.md) to Muse as the **Outdoor Air** skill. Tell Muse the
+place and household preferences, then ask it to look up current outdoor air
+and update this gadget. A morning refresh or another schedule runs in Muse.
 
-Open Muse, add the gadget, supply Wi-Fi and press the top button to confirm
-pairing. The [beginner's guide](../../README.md) covers SDK tokens and setup.
-Once connected, the dashboard appears. Setup, pairing, connection loss and
-errors use the existing Muse status screen.
+Muse should establish actual current UTC and the owner's current local offset
+with `clock.set {"utc_epoch":...,"utc_offset_min":...}`. Observation time comes
+from the source; it remains unchanged when the same report is pushed again.
 
-Give Muse [SKILL.md](SKILL.md), or its raw contents, and ask it to install
-this as your **Air Guardian** skill. Then ask Muse to set the correct current
-UTC time and your local UTC offset with `clock.set`. SNTP synchronizes UTC;
-the stored offset supplies local time, including the night schedule. Update
-the offset when your daylight saving time changes.
+## Commands
 
-## At home
-
-A short top-button press cycles **ambient → numbers → night → auto** and
-saves the choice. Pairing confirmation and the setup-window button action
-remain available during setup; the five-second reset hold retains its setup
-role. The reset clears pairing and Wi-Fi; device settings remain stored.
-
-- **Ambient:** room name, a plant inside a green/yellow/orange/red air ring,
-  a mood and CO2. Colour follows the worst available metric relative to the
-  configured limits; missing readings are explicitly identified.
-- **Numbers:** four values with units and 24 hourly CO2 averages. Gaps mean
-  missing data. The graph scales to the observed range.
-- **Night:** a dark background and dim warm CO2 text. `auto` uses this view
-  from 22:00 inclusive until 07:00 exclusive, otherwise ambient. Before local
-  time is valid, auto uses ambient.
-- **Alert:** a border pulses once a second and gives advice until recovery.
-  Night alerts use a dim warm border. Display brightness is reduced through
-  pixel colours; the existing backlight driver remains in use.
-
-Muse can still show an image with `display.draw_url` or `display.draw_file`.
-`display.show_animation` returns to the dashboard within five seconds while
-connected. Sampling and alerts continue while an image is displayed.
-
-## Things to say to Muse
-
-- “Name this room Bedroom, and warn me above 1000 ppm CO2.”
-- “Tell me if the living room exceeds 28 C or CO2 1500 while the dog is home.”
-- “Show the four readings.” / “Use night mode.” / “Use automatic night mode.”
-- “How was the bedroom air last night? Explain the worst period simply.”
-- “At 07:00 each morning, tell me how the bedroom air was overnight.”
-
-Room labels use 1–40 printable ASCII characters, such as `Nursery`. One board
-watches one room. Limits remain active continuously; Muse routines can apply
-and later restore agreed settings for a pet-at-home period. Presence sensing
-and a morning scheduler are provided by the user's Muse routines.
-
-## Commands and data
-
-All commands return the usual `ok` and `payload` or `error` result. Work runs
-on an application task, including NVS writes and history aggregation.
-
-| Command | Parameters and result |
+| Command | Effect |
 |---|---|
-| `sensors.read` | Existing current readings with units and ages; stale readings are null. |
-| `air.status` | No parameters. Current values/levels, room, configured/effective view, time validity, limits and the last saved event per threshold. |
-| `air.set_thresholds` | Any nonempty subset of the limits below and/or `room`; saves atomically. |
-| `air.set_view` | Required `view`: `ambient`, `numbers`, `night`, `auto`; saved. |
-| `sensors.history` | Optional integer `hours` 1–168, default 24, and `step_min` 1–10080, default 1. Actual step increases to keep at most 24 points. |
-| `clock.set` | Integer `utc_epoch` and `utc_offset_min` (−840 to +840). |
-| `events.poll` | Optional `since`; foundation event backlog for catching up. |
+| `air.update` | Validate and save a complete outdoor snapshot. |
+| `air.status {}` | Return the saved snapshot, `age_s`, `refresh_needed`, clock validity and selected view. |
+| `air.set_view {"view":"numbers"}` | Save `ambient`, `numbers` or `night`. |
 
-| Limit | Firmware default | Accepted range | Recovery margin |
-|---|---:|---:|---:|
-| `co2_ppm` | 1000 | Integer 400–10000 ppm | 100 ppm below |
-| `tvoc` | 250 | Integer 1–500 index | 25 below |
-| `temp_high_c` | 28 | −40–85 C | 1 C below |
-| `temp_low_c` | 16 | −40–85 C | 1 C above |
-| `humidity_high` | 65 | 0–100 % RH | 5 below |
-| `humidity_low` | 30 | 0–100 % RH | 5 above |
+Illustrative `air.update` payload; replace values and timestamp with the actual
+source observation:
 
-High and low temperature must be at least 2 C apart; humidity limits at least
-10 percentage points apart. A crossing means strictly above/below the limit.
-Recovery includes the margin boundary. Each limit sends one alert, then one
-recovery for an accepted alert. Repeated crossings of the same metric have a 30-minute alert
-cooldown shared by its high and low limits. An ongoing alert sends no periodic reminders. A crossing suppressed
-by cooldown can alert later if still active; an episode that recovers before
-being announced produces no recovery message. Missing readings retain an
-existing alert and show a sensor-connection instruction.
-
-Settings and the last alert per limit survive reboot in NVS. If UTC is
-unavailable at boot, a restored alert cooldown starts conservatively from boot.
-History lives in approximately 315 KiB of PSRAM and restarts empty on reboot.
-The latest fresh value of each metric is sampled once a minute for seven days;
-these are minute snapshots, rather than averages of every UART reading.
-
-History returns aligned `timestamps` and arrays `co2`, `tvoc`, `temperature`,
-`humidity`. Each metric entry is `[min,avg,max,count]` or `null`; timestamps
-are bucket starts. Use sample counts to weight averages. `step_min` is the
-actual returned width. Timestamps use `time_basis: epoch` when UTC is valid,
-otherwise `uptime`; epoch timestamps map monotonic sample ages onto the
-current UTC clock. A clock correction changes that mapping consistently.
-The final bucket may be shorter. Bucket summaries support trends and peaks;
-exact time above a limit cannot be recovered from them.
-
-Events arrive as `[Air Guardian event]` with short advice and JSON `kind`
-(`alert` or `recovery`), metric, threshold, room, value and limit. They enter
-the owner's Muse chat through the shared [event foundation](../../esp32/docs/gadget-foundation.md).
-Delivery depends on power, Wi-Fi and Muse connectivity. The foundation's
-pending queue and delivery backlog live in RAM and are bounded.
-
-## Practical starting settings
-
-The [skill](SKILL.md#starting-settings) has copyable presets. Choose the room
-and care plan together: a baby's sleeping room starts at 16–20 C per the
-[Lullaby Trust](https://www.lullabytrust.org.uk/baby-safety/safer-sleep-information/room-temperature/);
-pet, older-adult and office temperature limits are adjustable comfort prompts,
-rather than universal health limits. CO2 describes ventilation: the
-[HSE guide](https://www.hse.gov.uk/ventilation/using-co2-monitors.htm) identifies
-persistent readings above 1500 ppm in occupied rooms as a reason to improve it.
-The tVOC number is a relative index, with 100 typical; it is not a ppm reading
-or a pollutant identification.
-
-Use the display as a prompt to check the room and its occupants. This is a
-comfort monitor: smoke, carbon monoxide, oxygen, medical conditions and pet
-presence require their own appropriate equipment and checks. Opening a window
-is suitable when outdoor air and conditions allow it. There is no automated
-window, heater or fan control, and no spoken reply or chime in this project.
-
-Room history stays on the board until requested; requested data and alerts
-enter your Muse chat. Keep the board in the intended room and share its
-history only with the people you choose.
-
-## Verify
-
-From `esp32/`:
-
-```sh
-python3 -m unittest discover -s tests -p 'test_*.py'
-CARD_PREVIEW_DIR=/tmp/air-preview python3 -m unittest tests.test_air_guardian
+```json
+{
+  "aqi": 42,
+  "pm25": 7.1,
+  "category": "good",
+  "advice": "Enjoy your usual plans.",
+  "place": "San Francisco",
+  "updated_utc": 1793793600
+}
 ```
 
-The second command writes `air_ambient.ppm`, `air_numbers.ppm`,
-`air_night.ppm`, `air_alert.ppm`. It tests real C code with memory/undefined
-behaviour checks, including storage rollover, bucketing, alarm transitions,
-parameter validation, settings restore, asynchronous results and registration.
+- Supply `aqi`, `pm25`, or both. Omitted or null metrics are absent. AQI is an
+  integer **0–500 on the US EPA scale**; PM2.5 is **0–1000 ug/m3**. Zero is valid.
+- `category`, `advice`, and `updated_utc` are required. Category is one of
+  `good`, `moderate`, `unhealthy_sensitive`, `unhealthy`, `very_unhealthy`,
+  `hazardous`. With AQI, it must match bands 0–50, 51–100, 101–150, 151–200,
+  201–300, 301–500 respectively ([AirNow categories](https://www.airnow.gov/aqi/aqi-basics/)).
+  With only PM2.5, Muse supplies the source's corresponding US EPA category,
+  accounting for its observation period.
+- `advice` accepts 1–80 printable ASCII characters and `place` optionally accepts
+  1–40. Short display text works best, around 25 characters for advice. Longer
+  text is fitted with an ellipsis. Use an English or transliterated city label.
+- `updated_utc` is integer observation UTC Unix seconds, 1704067200–4102444799.
+  An older observation is rejected; a timestamp more than five minutes ahead
+  of a valid device clock is rejected. Unknown fields and duplicate keys fail.
+- Each update fully replaces the snapshot, including optional fields. Successful
+  writes save the snapshot and view together in one NVS record (`outdoor_air`).
+  Validation or storage errors leave the previous saved result in use.
 
-To regenerate shared assets from the repository root:
+Status returns `snapshot: null` before the first update. `age_s` is elapsed
+seconds since observation, or null when the clock is unknown or behind the
+observation. `refresh_needed` is true with no known age or after three hours.
+A restored snapshot retains its actual observation time.
+
+## Screen and button
+
+Ambient shows category, large AQI (or PM2.5 when AQI is absent), advice, place,
+`Updated hh:mm` and a category colour band. Numbers shows both metrics, with
+`--` for the missing one. Night uses dim warm pixels and a dim category band;
+physical backlight brightness remains the board's existing setting.
+
+The top button cycles ambient → numbers → night → ambient after setup and
+pairing handling. The selected view survives reboot. An unknown clock labels
+the observation in UTC and marks age as unknown; after three hours the header
+requests a refresh. Setup, pairing and error states use the SDK's status screen. During reconnection,
+the saved snapshot remains visible until Muse refreshes.
+Muse images temporarily replace the advisor; `display.show_animation {}`
+returns to it within five seconds.
+
+## Check locally
 
 ```sh
-CARD_ICON_FONT=$HOME/Desktop/muse-gadget-challenge/.cache/fonts/MaterialSymbolsRounded.ttf \
-  $HOME/Desktop/muse-gadget-challenge/.venv/bin/python esp32/tools/gen_card_assets.py
+cd esp32
+CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_air_guardian
 ```
 
-Validation for this implementation is host-side. Verify a fresh Indicator
-build and app size on an unrestricted host, then on one D1S/D1Pro test pairing,
-reconnect, top-button reset/confirmation/view cycling, sensor removal, all
-thresholds and recovery, reboot persistence, local night transitions, images
-and dashboard return. Check RGB colours, physical night visibility, border
-pulse and seven-day memory use on the actual LCD. Record revision, board
-revision, unit count and results with those checks.
+Native-renderer previews: `/tmp/card-preview/outdoor_good.ppm`,
+`outdoor_moderate.ppm`, `outdoor_unhealthy.ppm`, `outdoor_night.ppm`.
+See [VALIDATION.md](VALIDATION.md) for build results and hardware checks.
