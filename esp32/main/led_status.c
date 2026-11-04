@@ -18,6 +18,7 @@
 #include "stack_monitor.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +28,9 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_timer.h"
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+#include "air_guardian.h"
+#endif
 
 #if CONFIG_HOMEHUB_LED_BACKEND_PWM_RGB
 #include "driver/ledc.h"
@@ -402,6 +406,10 @@ static uint16_t s_bar_px;
 static bool s_dot_drawn = false;
 // An image from led_status_draw_rect() replaces the animation and title.
 static bool s_image_mode = false;
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+static atomic_bool s_air_ready;
+static bool s_air_drawn, s_air_was_ready;
+#endif
 static const uint8_t s_dot_rows[LCD_DOT_CELLS] = {0x6, 0xf, 0xf, 0x6};
 
 #if CONFIG_HOMEHUB_LED_BACKEND_IDEASPARK_ST7789 || CONFIG_HOMEHUB_LED_BACKEND_WAVESHARE_C6_ST7789
@@ -469,6 +477,12 @@ static void lcd_draw_dot(bool on) {
         }
     }
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    if (s_air_ready && s_air_drawn) {
+        xSemaphoreGive(s_lcd_lock);
+        return;
+    }
+#endif
     if (lcd_draw(LCD_DOT_X, LCD_DOT_Y, LCD_DOT_X + LCD_DOT_SIZE,
                  LCD_DOT_Y + LCD_DOT_SIZE, s_bar_buf)) {
         s_dot_drawn = on;
@@ -515,12 +529,27 @@ static void lcd_clear_rows(int y0, int y1) {
 
 static void led_hw_set_color(rgb_t c) {
     if (!s_panel) return;
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+    bool dot_drawn = s_dot_drawn;
+    bool same_bars = s_bars_drawn && memcmp(&c, &s_bar_color, sizeof(c)) == 0;
+    xSemaphoreGive(s_lcd_lock);
+    if (dot_drawn) lcd_draw_dot(false);
+    if (same_bars) return;
+#else
     if (s_dot_drawn) lcd_draw_dot(false);
     if (s_bars_drawn && memcmp(&c, &s_bar_color, sizeof(c)) == 0) return;
+#endif
     uint16_t px = lcd_px((rgb_t){to_full_scale(c.r), to_full_scale(c.g),
                                     to_full_scale(c.b)});
     for (int i = 0; i < LCD_H_RES * LCD_BAR_ROWS; i++) s_bar_buf[i] = px;
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    if (s_air_ready && s_air_drawn) {
+        xSemaphoreGive(s_lcd_lock);
+        return;
+    }
+#endif
     bool ok = lcd_draw(0, 0, LCD_H_RES, LCD_BAR_ROWS, s_bar_buf) &&
               lcd_draw(0, LCD_V_RES - LCD_BAR_ROWS, LCD_H_RES, LCD_V_RES, s_bar_buf);
     s_bar_color = c;
@@ -531,7 +560,14 @@ static void led_hw_set_color(rgb_t c) {
 
 // Connected: blank the bars and show the green dot instead.
 static void led_hw_set_connected(void) {
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+    bool dashboard = s_air_drawn || s_dot_drawn;
+    xSemaphoreGive(s_lcd_lock);
+    if (!s_panel || dashboard) return;
+#else
     if (!s_panel || s_dot_drawn) return;
+#endif
     led_hw_set_color(COLOR_OFF);
     lcd_draw_dot(true);
 }
@@ -571,7 +607,11 @@ static void led_hw_set_title(const char *text) {
             }
         }
         xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
-        if (!s_image_mode) {
+        if (!s_image_mode
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+            && !s_air_drawn
+#endif
+        ) {
             lcd_draw(0, LCD_TITLE_Y + sy, LCD_H_RES,
                      LCD_TITLE_Y + sy + LCD_TITLE_STRIPE_ROWS, s_bar_buf);
         }
@@ -587,7 +627,11 @@ static void lcd_draw_anim_frame(const uint8_t *cells) {
         int rows = HAPPY_ANIM_HEIGHT - cy;
         if (rows > LCD_ANIM_STRIPE_CELLS) rows = LCD_ANIM_STRIPE_CELLS;
         xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
-        if (s_image_mode) {
+        if (s_image_mode
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+            || s_air_drawn
+#endif
+        ) {
             xSemaphoreGive(s_lcd_lock);
             return;
         }
@@ -1038,6 +1082,22 @@ static bool voice_render(void) {
 }
 #endif
 
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+// Applies dashboard/status transitions on the display task.
+// 在显示任务中应用仪表盘与状态画面的切换。
+static void lcd_air_sync_state(void) {
+    xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+    bool ready = atomic_load(&s_air_ready);
+    if (!ready && (s_air_was_ready || s_air_drawn)) {
+        s_air_drawn = false;
+        s_image_mode = false;
+        lcd_clear_rows(0, LCD_V_RES);
+    }
+    s_air_was_ready = ready;
+    xSemaphoreGive(s_lcd_lock);
+}
+#endif
+
 static void led_task(void *arg) {
     stack_monitor_t stack = STACK_MONITOR_INIT;
     while (1) {
@@ -1049,6 +1109,9 @@ static void led_task(void *arg) {
         if (title_dirty) memcpy(title, s_title, sizeof(title));
         s_title_dirty = false;
         xSemaphoreGive(s_mutex);
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+        lcd_air_sync_state();
+#endif
         if (title_dirty) led_hw_set_title(title);
 #if CONFIG_HOMEHUB_VOICE
         if (voice_render()) continue;
@@ -1141,6 +1204,9 @@ void led_status_set_state(led_state_t state) {
     if (!s_mutex) return;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_state = state;
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    atomic_store(&s_air_ready, state == LED_STATE_WS_CONNECTED);
+#endif
     xSemaphoreGive(s_mutex);
 }
 
@@ -1215,8 +1281,17 @@ void led_status_draw_done(void) {
 // on top. The first draw replaces the animation and title with a blank screen.
 static bool lcd_draw_image_rect(int x, int y, int w, int h, const void *pixels) {
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    if (!atomic_load(&s_air_ready)) {
+        xSemaphoreGive(s_lcd_lock);
+        return false;
+    }
+#endif
     if (!s_image_mode) {
         s_image_mode = true;
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+        s_air_drawn = false;
+#endif
         lcd_clear_rows(0, LCD_V_RES);
     }
 #if CONFIG_HOMEHUB_LED_BACKEND_IDEASPARK_ST7789 || CONFIG_HOMEHUB_LED_BACKEND_WAVESHARE_C6_ST7789
@@ -1271,3 +1346,19 @@ void led_status_show_animation(void) {
     muse_ui_image_hide();
 #endif
 }
+
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+bool led_status_air_draw(const uint16_t *pixels) {
+    if (!s_panel || !s_lcd_lock || !pixels) return false;
+    xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+    bool ok = s_air_ready && !s_image_mode;
+    if (ok) {
+        s_air_drawn = true;
+        s_bars_drawn = false;
+        s_dot_drawn = false;
+        ok = lcd_draw(0, 0, LCD_H_RES, LCD_V_RES, pixels);
+    }
+    xSemaphoreGive(s_lcd_lock);
+    return ok;
+}
+#endif

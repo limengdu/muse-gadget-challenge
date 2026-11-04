@@ -18,13 +18,14 @@
 from pathlib import Path
 import hashlib
 import json
+import os
 
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "esp32/main"
 TEXT_FONT = ROOT / "esp32/components/muse/eink/fonts/montserrat.ttf"
-ICON_FONT = ROOT / ".cache/fonts/MaterialSymbolsRounded.ttf"
+ICON_FONT = Path(os.environ.get("CARD_ICON_FONT", ROOT / ".cache/fonts/MaterialSymbolsRounded.ttf"))
 SIZES = (28, 40, 60, 96)
 ICON_SIZES = (64, 112)
 CHARACTERS = sorted(set(range(0x20, 0x7F)) | {
@@ -36,6 +37,7 @@ ICONS = sorted("""
     palette bathtub pets directions_bus shopping_cart cleaning_services
     local_laundry_service music_note brush egg water_drop nightlight alarm
     favorite check_circle elderly child_care toys book edit celebration
+    air co2 thermostat humidity_percentage eco potted_plant warning window bedtime
 """.split())
 HEADER = """/*
  * Copyright (c) 2026 limengdu

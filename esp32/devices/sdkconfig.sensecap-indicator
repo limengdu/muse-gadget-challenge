@@ -14,7 +14,7 @@
 
 # Seeed SenseCAP Indicator (D1, D1S, D1Pro, D1L): ESP32-S3 with 8 MB octal
 # PSRAM, 8 MB flash, a 4 inch 480x480 ST7701S RGB display, a CH340 USB-UART
-# bridge, and an RP2040 for the sensors (not used). Load last, after
+# bridge, and an RP2040 for the sensors. Load last, after
 # sdkconfig.defaults (see README.md in this directory).
 #
 # It overrides the ESP32-C5 assumptions in sdkconfig.defaults; C5-only options
@@ -29,6 +29,11 @@ CONFIG_HOMEHUB_LED_BACKEND_SENSECAP_ST7701=y
 CONFIG_HOMEHUB_BLE_NAME_SUFFIX="-Disp"
 # The button on top of the case, active low.
 CONFIG_HOMEHUB_BUTTON_GPIO=38
+
+# Hardware: https://wiki.seeedstudio.com/SenseCAP_Indicator_Dive_into_the_Hardware/
+# Sensor protocol: https://github.com/Seeed-Solution/SenseCAP_Indicator_RP2040
+CONFIG_HOMEHUB_SENSECAP_SENSORS=y
+CONFIG_HOMEHUB_AIR_GUARDIAN=y
 
 # 8 MB quad flash, as in the defaults.
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y

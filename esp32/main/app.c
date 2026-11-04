@@ -78,6 +78,9 @@
 #endif
 #if CONFIG_HOMEHUB_SENSECAP_SENSORS
 #include "sensecap_sensors.h"
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+#include "air_guardian.h"
+#endif
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
 #include "reterminal_sht4x.h"
@@ -1885,6 +1888,12 @@ static cJSON *on_ws_command(
         return gadget_clock_command(params, request_id, session_generation);
     }
 #endif
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    if (strcmp(command, "sensors.history") == 0 || strcmp(command, "air.set_thresholds") == 0
+        || strcmp(command, "air.status") == 0 || strcmp(command, "air.set_view") == 0) {
+        return air_guardian_command(command, params, request_id, session_generation);
+    }
+#endif
     if (strcmp(command, "device.list_vms") == 0) {
         return list_vms_command();
     }
@@ -2235,7 +2244,11 @@ static void on_button_short_press(void) {
         return;
     }
 
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    air_guardian_cycle_view();
+#else
     ESP_LOGI(TAG, "button short-press ignored; setup already complete");
+#endif
 }
 
 static void on_button_double_press(void) {
@@ -2783,6 +2796,9 @@ void app_run(void) {
 #endif
 #if CONFIG_HOMEHUB_SENSECAP_SENSORS
     sensecap_sensors_init();
+#endif
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    (void)air_guardian_init();
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
     reterminal_sht4x_init();

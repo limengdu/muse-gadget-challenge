@@ -61,11 +61,14 @@ class EpaperCards(unittest.TestCase):
     def test_assets_are_conditional(self):
         cmake = (ROOT / "main/CMakeLists.txt").read_text()
         block = cmake.split("if(CONFIG_HOMEHUB_EPAPER_CARDS)", 1)[1].split("endif()", 1)[0]
-        for source in ("epaper_cards.c", "card_fonts.c", "card_icons.c"):
-            self.assertIn(source, block)
+        self.assertIn("epaper_cards.c", block)
+        assets = cmake.split("if(CONFIG_HOMEHUB_CARD_ASSETS)", 1)[1].split("endif()", 1)[0]
+        for source in ("card_fonts.c", "card_icons.c"):
+            self.assertIn(source, assets)
         kconfig = (ROOT / "main/Kconfig.projbuild").read_text()
         block = kconfig.split("config HOMEHUB_EPAPER_CARDS\n", 1)[1].split("config ", 1)[0]
         self.assertIn("default n", block)
+        self.assertIn("select HOMEHUB_CARD_ASSETS", block)
         self.assertIn("RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6", block)
 
 
