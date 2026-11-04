@@ -1,0 +1,11 @@
+{
+  "copyright": "Copyright (c) 2026 limengdu",
+  "license": "Apache-2.0",
+  "rows": [
+    {"req": "post", "row": {"message_id": "my-note", "session_id": "care-session"}},
+    {"req": "sub", "row": {"type": "event", "event": "message.user", "seq": 973, "payload": {"message_id": "my-note", "session_id": "care-session"}}},
+    {"req": "sub", "row": {"type": "event", "event": "agent.status", "seq": 974, "payload": {"activity_code": "working", "session_id": "care-session"}}},
+    {"req": "sub", "row": {"type": "event", "event": "agent.status", "seq": 975, "payload": {"activity_code": "online", "session_id": "care-session"}}},
+    {"req": "sub", "row": {"type": "event", "event": "task.status", "seq": 976, "payload": {"status": "completed", "session_id": "care-session"}}}
+  ]
+}

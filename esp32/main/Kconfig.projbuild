@@ -333,6 +333,28 @@ menu "ESP32 Device SDK"
             Synchronize UTC through pool.ntp.org once Wi-Fi has an address.
             clock.set also sets UTC and a persistent local offset in minutes.
 
+    config HOMEHUB_RETERMINAL_IO
+        bool "reTerminal E100x keys, LED, buzzer and RTC"
+        depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6
+        default n
+        help
+            Shares I2C0 with the SHT4x, drives the PCF8563 UTC clock,
+            and supplies debounced keys, a green LED and gentle chimes.
+
+    config HOMEHUB_CARE_BOARD
+        bool "E1001 Care Board"
+        depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179
+        select HOMEHUB_DAEMON_REQUESTS
+        select HOMEHUB_GADGET_EVENTS
+        select HOMEHUB_GADGET_CLOCK
+        select HOMEHUB_EPAPER_CARDS
+        select HOMEHUB_RETERMINAL_IO
+        select HOMEHUB_RETERMINAL_SHT4X
+        default n
+        help
+            Persistent family messages, daily reminders and one-press
+            care events on the reTerminal E1001 kitchen screen.
+
     config HOMEHUB_EPAPER_CARDS
         bool "Native e-paper card pages"
         depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6

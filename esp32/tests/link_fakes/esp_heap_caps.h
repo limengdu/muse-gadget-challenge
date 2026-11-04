@@ -17,11 +17,21 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdlib.h>
 
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define MALLOC_CAP_INTERNAL 4
 #define MALLOC_CAP_DMA 8
+
+#ifdef LINK_FAKE_CUSTOM_CALLOC
+void *heap_caps_calloc(size_t count, size_t size, int caps);
+#else
+static inline void *heap_caps_calloc(size_t count, size_t size, int caps) {
+    (void)caps;
+    return calloc(count, size);
+}
+#endif
 
 #ifdef LINK_FAKE_CUSTOM_HEAP_CAPS
 void *heap_caps_malloc(size_t size, int caps);

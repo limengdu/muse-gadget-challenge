@@ -241,6 +241,11 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 来我们的社区 [Discord](https://discord.gg/3bhjCkZdd6) 认识其他正在制作、改装 Muse 设备的人。找灵感、互相帮忙，也把你做出来的东西分享出去。
 
+## E1001 家庭关怀看板
+
+[Care Board 项目](../projects/care-board/README.zh-CN.md) 使用 E1001 原生卡片页、本地 RTC、
+家人留言，以及确认提醒、报平安和回电请求按键；项目指南包含配置、Muse 技能及使用边界。
+
 ## Gadget 项目共享基础
 
 E1001 和 E1002 已启用设备事件（`events.poll`）、本地时钟（`clock.set`）和原生卡片页面。

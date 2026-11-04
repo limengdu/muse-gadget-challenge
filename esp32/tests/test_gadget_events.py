@@ -24,16 +24,102 @@ except ImportError:
 
 
 class GadgetEvents(unittest.TestCase):
+    def test_silent_turn_and_fifo_delivery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            write_rtos(out)
+            (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 0\n")
+            binary = compile_host(out, [ROOT / "tests/gadget_events_silent_harness.c"], json=True,
+                flags=[f'-DREPLY_FIXTURE_PATH="{ROOT / "tests/gadget_reply_fixture.json"}"',
+                       f'-DSILENT_FIXTURE_PATH="{ROOT / "tests/gadget_silent_fixture.json"}"'])
+            result = run_host(binary)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            progress = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith("@event ")]
+            self.assertEqual([line["status"] for line in progress], ["queued", "sent", "delivered"])
+            self.assertEqual(progress[-1], {"status": "delivered", "seq": 1})
+            states = [json.loads(line[len("@event.state "):]) for line in result.stdout.splitlines() if line.startswith("@event.state ")]
+            self.assertEqual(len(states), 1)
+            self.assertEqual(states[0]["reason"], "silent")
+            self.assertEqual(states[0]["quiet_ms"], 4000)
+            self.assertEqual(states[0]["count"], 0)
+            self.assertFalse(states[0]["complete"] or states[0]["agent_busy"])
+
     def test_queue_stream_retry_and_poll(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             write_rtos(out)
-            binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True)
+            (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 0\n")
+            binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
+                flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"'])
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             progress = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith("@event ")]
             self.assertEqual([line["status"] for line in progress], ["queued", "sent", "reply"])
             self.assertEqual(progress[-1]["text"], "All ready!")
+            self.assertNotIn("PRIVATE_", result.stdout)
+            debug = [json.loads(line[len("@event.debug "):]) for line in result.stdout.splitlines() if line.startswith("@event.debug ")]
+            self.assertEqual(debug, [{"enabled": True}, {"enabled": False}])
+            rows = [json.loads(line[len("@event.row "):]) for line in result.stdout.splitlines() if line.startswith("@event.row ")]
+            self.assertTrue(rows)
+            self.assertTrue(any(row["len"] > 12288 and row["keys"] == [] for row in rows))
+            self.assertTrue(any(row["ids"].get("payload.message_id") == "message-id" for row in rows))
+            for row in rows:
+                self.assertEqual(set(row) - {"dropped"}, {"req", "status", "len", "keys", "type", "event", "event_name", "payload_keys", "ids", "seq", "activity_code", "payload_status"})
+                self.assertTrue(row["seq"] is None or isinstance(row["seq"], (int, float)))
+                for key in ("activity_code", "payload_status"):
+                    self.assertTrue(row[key] is None or isinstance(row[key], str))
+            sequenced = [row for row in rows if row["seq"] == 77]
+            self.assertEqual(len(sequenced), 2)
+            self.assertNotIn("dropped", sequenced[0])
+            self.assertEqual(sequenced[1]["dropped"], "seq")
+            self.assertEqual(sequenced[0]["activity_code"], "thinking")
+            self.assertEqual(sequenced[0]["payload_status"], "running")
+            self.assertTrue(any(row["event"] == "task.status" and row["payload_status"] == "running" for row in rows))
+            diagnostic = next(row for row in rows if row["event"] == "diag.event")
+            self.assertIsNone(diagnostic["seq"])
+            self.assertIsNone(diagnostic["activity_code"])
+            self.assertIsNone(diagnostic["payload_status"])
+            frames = [json.loads(line[len("@event.frame "):]) for line in result.stdout.splitlines() if line.startswith("@event.frame ")]
+            self.assertEqual(len(frames), 5)
+            self.assertIn({"req": "sub", "bytes": 7, "newlines": 1, "pending": 0, "ws_only": True}, frames)
+            self.assertIn({"req": "sub", "bytes": 1, "newlines": 0, "pending": 1, "ws_only": False}, frames)
+            for frame in frames:
+                self.assertEqual(set(frame), {"req", "bytes", "newlines", "pending", "ws_only"})
+                self.assertEqual(frame["req"], "sub")
+                self.assertIsInstance(frame["ws_only"], bool)
+            states = [json.loads(line[len("@event.state "):]) for line in result.stdout.splitlines() if line.startswith("@event.state ")]
+            self.assertEqual([state["reason"] for state in states], ["settled", "timeout", "failed", "failed"])
+            settled = states[0]
+            self.assertTrue(settled["note_id_set"] and settled["complete"] and settled["agent_busy"])
+            self.assertEqual(settled["echo_row"], 1)
+            self.assertEqual(settled["row"], 5)
+            self.assertEqual(settled["count"], 1)
+            self.assertEqual(settled["quiet_ms"], 20000)
+            self.assertEqual(settled["content_age_ms"], 20000)
+            self.assertEqual(settled["candidates"], [{"id_tail": "msg-turn", "started": 2, "done": True, "text_len": 10}])
+            self.assertTrue(states[1]["note_id_set"])
+            self.assertFalse(states[1]["complete"])
+            for state in states:
+                self.assertEqual(set(state), {"reason", "note_id_set", "echo_row", "row", "server_seq", "count", "candidates", "complete", "agent_busy", "pending", "overflow", "quiet_ms", "content_age_ms"})
+                self.assertEqual(state["pending"], 0)
+                self.assertFalse(state["overflow"])
+                for candidate in state["candidates"]:
+                    self.assertEqual(set(candidate), {"id_tail", "started", "done", "text_len"})
+                    self.assertLessEqual(len(candidate["id_tail"]), 8)
+            for line in result.stdout.splitlines():
+                if line.startswith("@event.request "): json.loads(line[len("@event.request "):])
+
+    def test_psram_allocation_and_no_internal_fallback_when_present(self):
+        for present in (0, 1):
+            with self.subTest(psram=present), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                write_rtos(out)
+                (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 1\n")
+                (out / "esp_psram.h").write_text("#include <stdbool.h>\nbool esp_psram_is_initialized(void);\n")
+                binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
+                    flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"', "-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])
+                result = run_host(binary)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_console_token_and_extension_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,6 +187,9 @@ int main() {
     cJSON *commands=cJSON_GetObjectItem(cJSON_GetObjectItem(root,"params"),"commands_v2");
     assert((cJSON_GetObjectItem(commands,"events.poll")!=nullptr)==CONFIG_HOMEHUB_GADGET_EVENTS);
     assert((cJSON_GetObjectItem(commands,"clock.set")!=nullptr)==CONFIG_HOMEHUB_GADGET_CLOCK);
+    assert((cJSON_GetObjectItem(commands,"care.update")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
+    assert((cJSON_GetObjectItem(commands,"care.state")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
+    assert((cJSON_GetObjectItem(commands,"care.clear")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
     printf("%zu bytes\\n",strlen(json));
     free(json);cJSON_Delete(root);
 }
@@ -114,7 +203,7 @@ int main() {
                         from card_test_support import JSON
                     subprocess.run([*shlex.split(os.environ.get("CC", "cc")), "-c", str(JSON / "cJSON.c"),
                                     "-o", str(obj)], check=True, capture_output=True)
-                    flags = [f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
+                    flags = [f"-DCONFIG_HOMEHUB_CARE_BOARD={enabled if bits == 1 else 0}", f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
                              "-DCONFIG_HOMEHUB_DISPLAY_COMMANDS=1", "-DCONFIG_HOMEHUB_RETERMINAL_SHT4X=1",
                              "-DCONFIG_HOMEHUB_TUNNEL=1"]
                     binary = compile_host(out, [harness, obj], flags=flags, cxx=True)

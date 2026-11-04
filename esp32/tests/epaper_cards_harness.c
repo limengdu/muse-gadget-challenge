@@ -57,6 +57,14 @@ static void checks(void) {
         epaper_cards_text(&c, 780, 470, "Clip", 96, CARD_RED);
         assert(epaper_cards_icon(&c, -40, -40, "sunny", 112, CARD_BLUE));
         assert(epaper_cards_icon(&c, 790, 470, "sunny", 64, CARD_BLUE));
+        uint8_t *comparison=malloc(bytes);assert(comparison);memcpy(comparison,c.pixels,bytes);
+        epaper_cards_canvas_t scaled=c;scaled.pixels=comparison;
+        assert(epaper_cards_icon(&c,40,130,"home",64,CARD_RED));
+        assert(epaper_cards_icon_scaled(&scaled,40,130,"home",64,64,CARD_RED));
+        assert(!memcmp(comparison,c.pixels,bytes));free(comparison);
+        assert(epaper_cards_icon_scaled(&c,790,470,"sunny",112,40,CARD_GREEN));
+        assert(epaper_cards_icon_scaled(&c,INT_MAX,INT_MIN,"home",64,40,CARD_RED));
+        assert(!epaper_cards_icon_scaled(&c,0,0,"home",64,0,CARD_BLACK));
         epaper_cards_rect(&c, INT_MIN, INT_MIN, INT_MAX, INT_MAX, 0, true, CARD_RED);
         epaper_cards_hline(&c, INT_MAX, 0, INT_MAX, CARD_RED);
         epaper_cards_vline(&c, 0, INT_MAX, INT_MAX, CARD_RED);

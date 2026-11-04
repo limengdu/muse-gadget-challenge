@@ -25,6 +25,10 @@
 extern "C" {
 #endif
 
+typedef void (*gadget_clock_change_cb)(void);
+void gadget_clock_set_change_cb(gadget_clock_change_cb callback);
+int gadget_clock_offset_minutes(void);
+bool gadget_clock_restore_utc(int64_t epoch);
 void gadget_clock_init(void);
 void gadget_clock_wifi_up(void);
 bool gadget_clock_set(int64_t utc_epoch, int utc_offset_min);
