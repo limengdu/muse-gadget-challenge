@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "esp32/main"
 TEXT_FONT = ROOT / "esp32/components/muse/eink/fonts/montserrat.ttf"
 ICON_FONT = ROOT / ".cache/fonts/MaterialSymbolsRounded.ttf"
-SIZES = (28, 40, 60, 96)
+SIZES = (20, 28, 40, 60, 96)
 ICON_SIZES = (64, 112)
 CHARACTERS = sorted(set(range(0x20, 0x7F)) | {
     0xB0, 0x2022, 0x2013, 0x2014, 0x2019, 0x201C, 0x201D, 0x2026,
@@ -36,7 +36,14 @@ ICONS = sorted("""
     palette bathtub pets directions_bus shopping_cart cleaning_services
     local_laundry_service music_note brush egg water_drop nightlight alarm
     favorite check_circle elderly child_care toys book edit celebration
+    park directions_car redeem apparel rice_bowl toothbrush
 """.split())
+KID_ICONS = set("sunny toothbrush apparel rice_bowl backpack school menu_book pool piano bathtub bed toys park directions_car star redeem check_circle".split())
+KID_ALIASES = {"wake": "sunny", "sun": "sunny", "shirt": "apparel",
+               "breakfast": "rice_bowl", "bowl": "rice_bowl", "homework": "menu_book", "book": "menu_book",
+               "swim": "pool", "music": "piano", "bath": "bathtub", "sleep": "bed", "play": "toys",
+               "car": "directions_car", "pickup": "directions_car", "gift": "redeem", "reward": "redeem"}
+KID_NEW_ICONS = {"park", "directions_car", "redeem", "apparel", "rice_bowl", "toothbrush"}
 HEADER = """/*
  * Copyright (c) 2026 limengdu
  *
@@ -166,6 +173,7 @@ const card_glyph_t *card_font_glyph(const card_font_t *font, uint32_t codepoint)
     source = HEADER + notice + '#include "card_fonts.h"\n#include <stddef.h>\n#ifdef ESP_PLATFORM\n#include "sdkconfig.h"\n#endif\n\n'
     total = 0
     care_total = 0
+    kid_total = 0
     entries = []
     for size in SIZES:
         font = ImageFont.truetype(str(TEXT_FONT), size, layout_engine=ImageFont.Layout.BASIC)
@@ -187,15 +195,18 @@ const card_glyph_t *card_font_glyph(const card_font_t *font, uint32_t codepoint)
             glyphs.append(f"    {{{cp}, {len(bitmap)}, {advance}, {x}, {y}, {w}, {height}, {count}}},")
             bitmap.extend(encoded)
         ascent, descent = font.getmetrics()
-        guard = "#if !CONFIG_HOMEHUB_CARE_BOARD\n" if size == 96 else ""
+        guard = ("#if CONFIG_HOMEHUB_KID_BOARD\n" if size == 20 else
+                 "#if !CONFIG_HOMEHUB_KID_BOARD\n" if size == 60 else
+                 "#if !CONFIG_HOMEHUB_CARE_BOARD && !CONFIG_HOMEHUB_KID_BOARD\n" if size == 96 else "")
         source += guard + array(f"bitmap_{size}", bitmap)
         source += f"static const card_glyph_t glyphs_{size}[] = {{\n" + "\n".join(glyphs) + "\n};\n\n"
         if guard: source += "#endif\n"
         entry = f"    {{{size}, {ascent}, {ascent + descent}, {len(glyphs)}, glyphs_{size}, bitmap_{size}}},"
         entries.append(guard + entry + ("\n#endif" if guard else ""))
         size_bytes = len(bitmap) + len(glyphs) * 20 + 16
-        total += size_bytes
-        if size != 96: care_total += size_bytes
+        if size != 20: total += size_bytes
+        if size in (28, 40, 60): care_total += size_bytes
+        if size in (20, 28, 40): kid_total += size_bytes
     source += "static const card_font_t fonts[] = {\n" + "\n".join(entries) + "\n};\n"
     source += """
 const card_font_t *card_font_find(int size) {
@@ -218,7 +229,7 @@ const card_glyph_t *card_font_glyph(const card_font_t *font, uint32_t codepoint)
 """
     (OUT / "card_fonts.h").write_text(h)
     (OUT / "card_fonts.c").write_text(source)
-    return total, care_total
+    return total, care_total, kid_total
 
 
 def icons():
@@ -226,6 +237,7 @@ def icons():
 // Copyright 2026 Google LLC.  All Rights Reserved.
 // License: card_assets_licenses/MaterialSymbols-LICENSE.txt.
 // FILL=1, GRAD=0, opsz=48, wght=500. Source: .cache/fonts/MaterialSymbolsRounded.ttf.
+// The toothbrush mask is drawn by this generator under the project license.
 """
     h = HEADER + notice + """
 #pragma once
@@ -247,36 +259,63 @@ const card_icon_t *card_icon_find(const char *name, int size);
 }
 #endif
 """
-    source = HEADER + notice + '#include "card_icons.h"\n#include <stddef.h>\n#include <string.h>\n\n'
+    source = HEADER + notice + '#include "card_icons.h"\n#include <stddef.h>\n#include <string.h>\n#ifdef ESP_PLATFORM\n#include "sdkconfig.h"\n#endif\n\n'
     codepoints = dict(line.split() for line in ICON_FONT.with_suffix(".codepoints").read_text().splitlines())
     entries = []
     total = 0
+    kid_total = 0
+    care_total = 0
     for name in ICONS:
-        source += f'static const char name_{name}[] = "{name}";\n'
+        conditions = (["!CONFIG_HOMEHUB_KID_BOARD"] if name not in KID_ICONS else []) + (["!CONFIG_HOMEHUB_CARE_BOARD"] if name in KID_NEW_ICONS else [])
+        name_guard = "#if " + " && ".join(conditions) + "\n" if conditions else ""
+        source += name_guard + f'static const char name_{name}[] = "{name}";\n' + ("#endif\n" if name_guard else "")
+        if name in KID_ICONS: kid_total += len(name) + 1
         total += len(name) + 1
+        if name not in KID_NEW_ICONS: care_total += len(name) + 1
         for size in ICON_SIZES:
             font = ImageFont.truetype(str(ICON_FONT), size, layout_engine=ImageFont.Layout.BASIC)
             values = {b"Fill": 1, b"Grade": 0, b"Optical Size": 48, b"Weight": 500}
             font.set_variation_by_axes([values[axis["name"]] for axis in font.get_variation_axes()])
-            char = chr(int(codepoints[name], 16))
-            bounds = font.getbbox(char)
             image = Image.new("L", (size, size))
-            ImageDraw.Draw(image).text(((size - bounds[2] + bounds[0]) // 2 - bounds[0],
-                                        (size - bounds[3] + bounds[1]) // 2 - bounds[1]),
-                                       char, font=font, fill=255)
+            draw = ImageDraw.Draw(image)
+            if name == "toothbrush":
+                scale = size / 64
+                def rect(bounds, radius):
+                    draw.rounded_rectangle(tuple(round(v * scale) for v in bounds), radius=round(radius * scale), fill=255)
+                rect((24, 8, 34, 55), 4)
+                rect((24, 8, 45, 28), 4)
+                for y in (10, 16, 22):
+                    draw.rectangle(tuple(round(v * scale) for v in (35, y, 48, y + 2)), fill=255)
+            else:
+                char = chr(int(codepoints[name], 16))
+                bounds = font.getbbox(char)
+                draw.text(((size - bounds[2] + bounds[0]) // 2 - bounds[0],
+                           (size - bounds[3] + bounds[1]) // 2 - bounds[1]), char, font=font, fill=255)
             box = image.point(lambda v: 255 if v >= 128 else 0).getbbox()
             if not box:
                 raise ValueError(f"Empty icon: {name} {size}")
             cropped = image.crop(box)
             data, count = encode_mask(pack(cropped), cropped.width)
             symbol = f"icon_{name}_{size}"
-            source += array(symbol, data)
-            entries.append(f"    {{name_{name}, {symbol}, {size}, {cropped.width}, {cropped.height}, {box[0]}, {box[1]}, {count}}},")
+            conditions = (["!CONFIG_HOMEHUB_KID_BOARD"] if size != 64 or name not in KID_ICONS else []) + (["!CONFIG_HOMEHUB_CARE_BOARD"] if name in KID_NEW_ICONS else [])
+            guard = "#if " + " && ".join(conditions) + "\n" if conditions else ""
+            source += guard + array(symbol, data) + ("#endif\n" if guard else "")
+            if size == 64 and name in KID_ICONS: kid_total += len(data) + 20
+            entries.append(guard + f"    {{name_{name}, {symbol}, {size}, {cropped.width}, {cropped.height}, {box[0]}, {box[1]}, {count}}}," + ("\n#endif" if guard else ""))
             total += len(data) + 20
+            if name not in KID_NEW_ICONS: care_total += len(data) + 20
     source += "static const card_icon_t icons[] = {\n" + "\n".join(entries) + "\n};\n"
     source += """
 const card_icon_t *card_icon_find(const char *name, int size) {
     if (!name) return NULL;
+#if CONFIG_HOMEHUB_KID_BOARD
+    static const struct { const char *alias, *name; } aliases[] = {
+""" + "\n".join(f'        {{"{alias}", "{name}"}},' for alias, name in KID_ALIASES.items()) + """
+    };
+    for (unsigned i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++) {
+        if (!strcmp(name, aliases[i].alias)) { name = aliases[i].name; break; }
+    }
+#endif
     for (unsigned i = 0; i < sizeof(icons) / sizeof(icons[0]); i++) {
         if (icons[i].size == size && !strcmp(icons[i].name, name)) return &icons[i];
     }
@@ -285,19 +324,24 @@ const card_icon_t *card_icon_find(const char *name, int size) {
 """
     (OUT / "card_icons.h").write_text(h)
     (OUT / "card_icons.c").write_text(source)
-    return total
+    return total, kid_total, care_total
 
 
 def main():
-    (font_bytes, care_font_bytes), icon_bytes = fonts(), icons()
+    (font_bytes, care_font_bytes, kid_font_bytes), (icon_bytes, kid_icon_bytes, care_icon_bytes) = fonts(), icons()
     total = font_bytes + icon_bytes
     print(f"Fonts: {font_bytes} bytes; icons: {icon_bytes} bytes; total: {total} / {160 * 1024} bytes")
-    print(f"Care Board fonts: {care_font_bytes} bytes; icons: {icon_bytes} bytes; total: {care_font_bytes + icon_bytes} bytes")
+    print(f"Care Board fonts: {care_font_bytes} bytes; icons: {care_icon_bytes} bytes; total: {care_font_bytes + care_icon_bytes} bytes")
+    print(f"Kid Board fonts: {kid_font_bytes} bytes; icons: {kid_icon_bytes} bytes; total: {kid_font_bytes + kid_icon_bytes} bytes")
     if total > 160 * 1024:
         raise SystemExit("Card assets exceed 160 KiB")
     manifest = {"fonts_bytes": font_bytes, "icons_bytes": icon_bytes,
-                "care_fonts_bytes": care_font_bytes, "care_total_bytes": care_font_bytes + icon_bytes,
-                "total_bytes": total, "font_sizes": SIZES, "icon_sizes": ICON_SIZES,
+                "kid_fonts_bytes": kid_font_bytes, "kid_icons_bytes": kid_icon_bytes,
+                "kid_total_bytes": kid_font_bytes + kid_icon_bytes,
+                "kid_font_sizes": [20, 28, 40], "kid_icon_sizes": [64],
+                "kid_icons": sorted(KID_ICONS), "kid_aliases": KID_ALIASES,
+                "care_fonts_bytes": care_font_bytes, "care_icons_bytes": care_icon_bytes, "care_total_bytes": care_font_bytes + care_icon_bytes,
+                "total_bytes": total, "font_sizes": [size for size in SIZES if size != 20], "icon_sizes": ICON_SIZES,
                 "encoding": "row-xor-zero-rle",
                 "sources": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                             for p in (TEXT_FONT, ICON_FONT, ICON_FONT.with_suffix(".codepoints"))}}

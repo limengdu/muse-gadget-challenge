@@ -20,6 +20,7 @@
 // Copyright 2026 Google LLC.  All Rights Reserved.
 // License: card_assets_licenses/MaterialSymbols-LICENSE.txt.
 // FILL=1, GRAD=0, opsz=48, wght=500. Source: .cache/fonts/MaterialSymbolsRounded.ttf.
+// The toothbrush mask is drawn by this generator under the project license.
 
 #pragma once
 #include <stdint.h>

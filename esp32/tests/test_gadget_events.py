@@ -129,6 +129,10 @@ int main() {
     assert((cJSON_GetObjectItem(commands,"care.update")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
     assert((cJSON_GetObjectItem(commands,"care.state")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
     assert((cJSON_GetObjectItem(commands,"care.clear")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
+    assert((cJSON_GetObjectItem(commands,"kid.set_schedule")!=nullptr)==CONFIG_HOMEHUB_KID_BOARD);
+    assert((cJSON_GetObjectItem(commands,"kid.set_stars")!=nullptr)==CONFIG_HOMEHUB_KID_BOARD);
+    assert((cJSON_GetObjectItem(commands,"kid.mark")!=nullptr)==CONFIG_HOMEHUB_KID_BOARD);
+    assert((cJSON_GetObjectItem(commands,"kid.state")!=nullptr)==CONFIG_HOMEHUB_KID_BOARD);
     printf("%zu bytes\\n",strlen(json));
     free(json);cJSON_Delete(root);
 }
@@ -142,7 +146,7 @@ int main() {
                         from card_test_support import JSON
                     subprocess.run([*shlex.split(os.environ.get("CC", "cc")), "-c", str(JSON / "cJSON.c"),
                                     "-o", str(obj)], check=True, capture_output=True)
-                    flags = [f"-DCONFIG_HOMEHUB_CARE_BOARD={enabled if bits == 1 else 0}", f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
+                    flags = [f"-DCONFIG_HOMEHUB_KID_BOARD={enabled if bits == 4 else 0}", f"-DCONFIG_HOMEHUB_CARE_BOARD={enabled if bits == 1 else 0}", f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
                              "-DCONFIG_HOMEHUB_DISPLAY_COMMANDS=1", "-DCONFIG_HOMEHUB_RETERMINAL_SHT4X=1",
                              "-DCONFIG_HOMEHUB_TUNNEL=1"]
                     binary = compile_host(out, [harness, obj], flags=flags, cxx=True)

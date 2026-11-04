@@ -460,6 +460,10 @@ settings.
 [E1001 Care Board](projects/care-board/README.md) adds large-print family messages,
 local reminders and key-press events for remote family care.
 
+[E1002 Kid Board](projects/kid-board/README.md) adds a colourful daily timeline,
+Green-key step confirmations and a parent-controlled star chart. Its
+[Muse skill](projects/kid-board/SKILL.md) covers daily planning and reward agreements.
+
 
 The XIAO 1.47 Touch Display is also supported upstream. Sticky uses Muse's
 FreeInk e-paper UI, with touch settings and a keyboard. Its avatar refreshes

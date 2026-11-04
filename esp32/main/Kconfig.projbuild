@@ -355,6 +355,19 @@ menu "ESP32 Device SDK"
             Persistent family messages, daily reminders and one-press
             care events on the reTerminal E1001 kitchen screen.
 
+    config HOMEHUB_KID_BOARD
+        bool "E1002 Kid Board"
+        depends on HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6
+        select HOMEHUB_DAEMON_REQUESTS
+        select HOMEHUB_GADGET_EVENTS
+        select HOMEHUB_GADGET_CLOCK
+        select HOMEHUB_EPAPER_CARDS
+        select HOMEHUB_RETERMINAL_IO
+        default n
+        help
+            Persistent daily timeline, step confirmations and a colourful
+            family star chart on the reTerminal E1002 six-colour screen.
+
     config HOMEHUB_EPAPER_CARDS
         bool "Native e-paper card pages"
         depends on HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6

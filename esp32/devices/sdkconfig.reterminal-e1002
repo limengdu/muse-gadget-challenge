@@ -33,8 +33,7 @@ CONFIG_HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6=y
 # Advertise as <prefix>-Disp-XXXXXX to tell this board apart from real devices:
 # MuseGadget-Disp in the open-source build, HomeLink-Disp in the internal one.
 CONFIG_HOMEHUB_BLE_NAME_SUFFIX="-Disp"
-# The green button on top, active low. The two white ones (GPIO4 and 5) are
-# not used.
+# The green button on top is active low and confirms Kid Board steps.
 CONFIG_HOMEHUB_BUTTON_GPIO=3
 CONFIG_HOMEHUB_BUTTON_LABEL="the green button"
 
@@ -58,3 +57,6 @@ CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
 CONFIG_HOMEHUB_GADGET_EVENTS=y
 CONFIG_HOMEHUB_GADGET_CLOCK=y
 CONFIG_HOMEHUB_EPAPER_CARDS=y
+
+CONFIG_HOMEHUB_KID_BOARD=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y

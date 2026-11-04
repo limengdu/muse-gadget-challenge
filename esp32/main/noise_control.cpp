@@ -1496,6 +1496,30 @@ static char *build_register_json(void) {
     }
 #endif
 
+#if CONFIG_HOMEHUB_KID_BOARD
+    auto kid_param = [](const char *type, const char *description) {
+        cJSON *p = cJSON_CreateObject();
+        cJSON_AddStringToObject(p, "type", type); cJSON_AddStringToObject(p, "description", description); return p;
+    };
+    cJSON *kid_schedule = cJSON_CreateObject(), *kid_schedule_optional = cJSON_CreateObject();
+    cJSON_AddItemToObject(kid_schedule, "items", kid_param("array",
+        "Replace 0..10 {id,time,label,icon,who?}; id 1..31 ASCII letters/digits/_/-, time HH:MM, label 1..47 bytes, icon 1..31, who 0..31. Stable IDs retain done on the same date."));
+    cJSON_AddItemToObject(kid_schedule_optional, "child", string_param("Child name, 1..31 bytes."));
+    cJSON_AddItemToObject(kid_schedule_optional, "date", string_param("Local YYYY-MM-DD, 2024..2099; default today requires clock.set. New date resets done; past plans advance daily; future plans wait."));
+    add_command(commands, "kid.set_schedule", "Set the E1002 Kid Board timeline. Text uses English/ASCII and card punctuation; unknown icons show the label. Returns state; screen updates within the 60s refresh window.", kid_schedule, kid_schedule_optional);
+    cJSON *kid_stars = cJSON_CreateObject(), *kid_stars_optional = cJSON_CreateObject();
+    cJSON_AddItemToObject(kid_stars, "count", kid_param("integer", "Absolute star total 0..999; read kid.state before adding a star."));
+    cJSON_AddItemToObject(kid_stars, "goal", kid_param("integer", "Reward goal 1..20; count >= goal earns the reward."));
+    cJSON_AddItemToObject(kid_stars_optional, "reward_label", string_param("Agreed reward, 0..63 bytes; omitted retains it."));
+    cJSON_AddItemToObject(kid_stars_optional, "reward_icon", string_param("Icon name 1..31 bytes; gift, park, play and others."));
+    cJSON_AddItemToObject(kid_stars_optional, "note", string_param("One parent message, 0..95 bytes; omitted retains it."));
+    add_command(commands, "kid.set_stars", "Set stars and reward by the owner's agreement; confirmation keys award no stars. Returns state.", kid_stars, kid_stars_optional);
+    cJSON *kid_mark = cJSON_CreateObject();
+    cJSON_AddItemToObject(kid_mark, "id", string_param("Existing item ID."));
+    cJSON_AddItemToObject(kid_mark, "done", kid_param("boolean", "Set or clear completion; repeated value is a no-op."));
+    add_command(commands, "kid.mark", "Set completion remotely and return state. Physical Green confirms the earliest due unfinished step, else the next, and sends a kid.done notice.", kid_mark, nullptr);
+    add_command(commands, "kid.state", "Read schedule with done/done_at, current item or null, stars/reward, clock validity, RTC and storage status.", nullptr, nullptr);
+#endif
 #if CONFIG_HOMEHUB_CARE_BOARD
     cJSON *care_optional = cJSON_CreateObject();
     const char *care_names[] = {"now_epoch", "utc_offset_min", "person", "family", "title", "weather", "messages", "add_message", "reminders"};
