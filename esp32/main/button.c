@@ -15,6 +15,7 @@
  */
 
 #include "button.h"
+#include <stdatomic.h>
 #include "stack_monitor.h"
 
 #include "driver/gpio.h"
@@ -31,6 +32,10 @@ static const char *TAG = "link.button";
 #define DOUBLE_CLICK_MS    400
 #define POLL_MS            50
 
+#if CONFIG_HOMEHUB_RETERMINAL_IO
+static _Atomic(button_short_observer) s_short_observer;
+void button_set_short_press_observer(button_short_observer observer) { atomic_store(&s_short_observer, observer); }
+#endif
 static button_cb s_short_press_cb = NULL;
 static button_cb s_double_press_cb = NULL;
 static button_cb s_long_press_cb = NULL;
@@ -43,6 +48,7 @@ void button_set_press_cb(button_press_cb cb) {
 #endif
 
 static void button_task(void *arg) {
+    (void)arg;
     stack_monitor_t stack = STACK_MONITOR_INIT;
     bool was_pressed = false;
     int64_t press_start = 0;
@@ -82,9 +88,17 @@ static void button_task(void *arg) {
             }
         } else if (!pressed && was_pressed && !fired) {
             int64_t held_ms = (esp_timer_get_time() - press_start) / 1000;
-            if (held_ms >= 50 && held_ms <= SHORT_PRESS_MAX_MS) {
-                click_count++;
-                last_release = esp_timer_get_time();
+            if (held_ms >= 50) {
+                bool observed = false;
+#if CONFIG_HOMEHUB_RETERMINAL_IO
+                button_short_observer observer = atomic_load(&s_short_observer);
+                observed = held_ms < LONG_PRESS_MS && observer && observer();
+#endif
+                if (observed) click_count = 0;
+                else if (held_ms <= SHORT_PRESS_MAX_MS) {
+                    click_count++;
+                    last_release = esp_timer_get_time();
+                }
             }
         }
 

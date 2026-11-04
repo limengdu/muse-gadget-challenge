@@ -16,6 +16,10 @@
 
 #pragma once
 
+#ifndef configTICK_RATE_HZ
+#define configTICK_RATE_HZ 1000
+#endif
+
 #define pdTRUE 1
 #define pdFALSE 0
 #define pdPASS 1

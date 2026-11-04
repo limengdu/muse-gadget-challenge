@@ -26,6 +26,9 @@ E1001、E1002 的配置已启用 `HOMEHUB_GADGET_EVENTS`、`HOMEHUB_GADGET_CLOCK
 紧凑 JSON 数据最多 1024 字节。消息格式为 `[source event] summary`，有数据时另起
 一行附上 JSON。内存分配失败、输入无效或队列锁正忙时返回 false，生产者可稍后重试。
 
+接收行和回复候选区在初始化时一次分配：有 PSRAM 时使用 PSRAM，无 PSRAM 时使用
+内部内存。PSRAM 分配失败时，事件初始化返回失败。
+
 后台任务逐条发送：先订阅 `/chat/subscribe`，再向 `/chat/stream` 发 JSON，使用
 发送确认中的消息编号关联回复。最近一轮回复最多保留 600 字节的完整 UTF-8 字符，
 通过 `gadget_events_reply()` 读取。尚未提交的请求按 1～30 秒逐步延长间隔重试；
@@ -53,6 +56,10 @@ Muse 通过 `clock.set` 传入这两个整数参数，独立后台任务完成�
 页面可调用 `gadget_clock_valid()`、`gadget_clock_epoch()`、
 `gadget_clock_local(&tm)` 和 `gadget_clock_minutes_of_day()`。
 最后一个函数在时间无效时返回 -1。本地时间等于 UTC 加固定时差；项目按需更新夏令时偏移。
+
+`gadget_clock_set_change_cb()` 在 SNTP 或手动校时后发出简短通知，回调可唤醒应用后台
+任务执行 RTC 读写。`gadget_clock_restore_utc()` 恢复 UTC 并保留已保存的本地时差，
+`gadget_clock_offset_minutes()` 返回该时差；Care Board 用这些接口连接共享 PCF8563 时钟。
 
 ## 卡片页面
 

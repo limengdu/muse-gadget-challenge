@@ -28,12 +28,25 @@ class GadgetEvents(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             write_rtos(out)
+            (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 0\n")
             binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True)
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             progress = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith("@event ")]
             self.assertEqual([line["status"] for line in progress], ["queued", "sent", "reply"])
             self.assertEqual(progress[-1]["text"], "All ready!")
+
+    def test_psram_allocation_and_no_internal_fallback_when_present(self):
+        for present in (0, 1):
+            with self.subTest(psram=present), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                write_rtos(out)
+                (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 1\n")
+                (out / "esp_psram.h").write_text("#include <stdbool.h>\nbool esp_psram_is_initialized(void);\n")
+                binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
+                    flags=["-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])
+                result = run_host(binary)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_console_token_and_extension_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,6 +114,9 @@ int main() {
     cJSON *commands=cJSON_GetObjectItem(cJSON_GetObjectItem(root,"params"),"commands_v2");
     assert((cJSON_GetObjectItem(commands,"events.poll")!=nullptr)==CONFIG_HOMEHUB_GADGET_EVENTS);
     assert((cJSON_GetObjectItem(commands,"clock.set")!=nullptr)==CONFIG_HOMEHUB_GADGET_CLOCK);
+    assert((cJSON_GetObjectItem(commands,"care.update")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
+    assert((cJSON_GetObjectItem(commands,"care.state")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
+    assert((cJSON_GetObjectItem(commands,"care.clear")!=nullptr)==CONFIG_HOMEHUB_CARE_BOARD);
     printf("%zu bytes\\n",strlen(json));
     free(json);cJSON_Delete(root);
 }
@@ -114,7 +130,7 @@ int main() {
                         from card_test_support import JSON
                     subprocess.run([*shlex.split(os.environ.get("CC", "cc")), "-c", str(JSON / "cJSON.c"),
                                     "-o", str(obj)], check=True, capture_output=True)
-                    flags = [f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
+                    flags = [f"-DCONFIG_HOMEHUB_CARE_BOARD={enabled if bits == 1 else 0}", f"-DCONFIG_HOMEHUB_GADGET_EVENTS={enabled}", f"-DCONFIG_HOMEHUB_GADGET_CLOCK={enabled}",
                              "-DCONFIG_HOMEHUB_DISPLAY_COMMANDS=1", "-DCONFIG_HOMEHUB_RETERMINAL_SHT4X=1",
                              "-DCONFIG_HOMEHUB_TUNNEL=1"]
                     binary = compile_host(out, [harness, obj], flags=flags, cxx=True)

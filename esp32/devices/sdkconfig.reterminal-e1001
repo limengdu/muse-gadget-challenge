@@ -27,14 +27,13 @@
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
-# No status LED under firmware control that can show colours: the e-paper
-# shows a status screen.
+# The e-paper shows status and the Care Board page; GPIO6 is a green alert LED.
 CONFIG_HOMEHUB_LED_BACKEND_RETERMINAL_UC8179=y
 # Advertise as <prefix>-Disp-XXXXXX to tell this board apart from real devices:
 # MuseGadget-Disp in the open-source build, HomeLink-Disp in the internal one.
 CONFIG_HOMEHUB_BLE_NAME_SUFFIX="-Disp"
-# The green button on top, active low. The two white ones (GPIO4 and 5) are
-# not used.
+# Green GPIO3 retains pairing and reset; Care Board uses its short release.
+# White GPIO4/GPIO5 supply the Care Board check-in and call actions.
 CONFIG_HOMEHUB_BUTTON_GPIO=3
 CONFIG_HOMEHUB_BUTTON_LABEL="the green button"
 
@@ -58,3 +57,4 @@ CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
 CONFIG_HOMEHUB_GADGET_EVENTS=y
 CONFIG_HOMEHUB_GADGET_CLOCK=y
 CONFIG_HOMEHUB_EPAPER_CARDS=y
+CONFIG_HOMEHUB_CARE_BOARD=y

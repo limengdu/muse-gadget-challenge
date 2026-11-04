@@ -24,6 +24,11 @@
 #include <string.h>
 #include <time.h>
 
+#include "sdkconfig.h"
+#include "esp_heap_caps.h"
+#if CONFIG_SPIRAM
+#include "esp_psram.h"
+#endif
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -235,17 +240,19 @@ bool gadget_events_console_command(const char *line) {
 
 // Request generations discard callbacks still arriving after cancellation.
 // 请求代号用于丢弃取消后仍然到达的回调。
-static struct {
+typedef struct {
     uint32_t generation;
     int status;
     bool done, overflow;
     size_t length;
     char row[ROW_MAX + 1];
-} s_rx[2];
-static struct {
+} event_rx_t;
+static event_rx_t *s_rx;
+typedef struct {
     char id[96], parent[96], text[GADGET_EVENTS_REPLY_BYTES];
     bool final;
-} s_candidates[4];
+} event_candidate_t;
+static event_candidate_t *s_candidates;
 static unsigned s_candidate_next;
 static char s_note_id[96], s_parent_id[96], s_echo_id[96];
 static char s_rx_reply[GADGET_EVENTS_REPLY_BYTES];
@@ -386,7 +393,7 @@ static void close_requests(int64_t post, int64_t sub) {
 static bool send_event(event_t *event) {
     if (!noise_ctrl_is_connected()) return false;
     xSemaphoreTake(s_rx_lock, portMAX_DELAY);
-    memset(s_candidates, 0, sizeof(s_candidates));
+    memset(s_candidates, 0, 4 * sizeof(*s_candidates));
     s_candidate_next = 0;
     s_note_id[0] = s_parent_id[0] = s_echo_id[0] = s_rx_reply[0] = 0;
     s_replied = false;
@@ -462,6 +469,15 @@ bool gadget_events_init(void) {
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
     if (!s_rx_lock) s_rx_lock = xSemaphoreCreateMutex();
     if (!s_lock || !s_rx_lock) return false;
+    // Allocate receive rows once in PSRAM; internal RAM is used without PSRAM.
+    // 接收行仅分配一次；有 PSRAM 时使用 PSRAM，否则使用内部内存。
+    int caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+#if CONFIG_SPIRAM
+    if (esp_psram_is_initialized()) caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#endif
+    if (!s_rx) s_rx = heap_caps_calloc(2, sizeof(*s_rx), caps);
+    if (!s_candidates) s_candidates = heap_caps_calloc(4, sizeof(*s_candidates), caps);
+    if (!s_rx || !s_candidates) return false;
     if (xTaskCreate(event_task, "gadget_events", 6144, NULL, 3, &s_task) != pdPASS) return false;
     atomic_store(&s_ready, true);
     return true;

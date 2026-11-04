@@ -372,6 +372,12 @@ Meet other hackers who are building and customizing Muse gadgets in our
 community [Discord](https://discord.gg/3bhjCkZdd6). Get inspired, support each
 other, and share what you make.
 
+## E1001 Care Board
+
+[Care Board](../projects/care-board/README.md) uses the E1001's native card page,
+local RTC, family messages and one-press reminder/check-in/call events.
+Its project guide covers setup, the Muse skill and limits.
+
 ## Gadget project foundation
 
 E1001 and E1002 enable device events (`events.poll`), a local clock (`clock.set`),

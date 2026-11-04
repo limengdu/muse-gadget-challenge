@@ -50,8 +50,7 @@ class EpaperCards(unittest.TestCase):
             (out / "esp_log.h").write_text('#define ESP_LOGI(tag, ...) ((void)(tag))\n'
                                          '#define ESP_LOGW(tag, ...) ((void)(tag))\n'
                                          '#define ESP_LOGE(tag, ...) ((void)(tag))\n')
-            (out / "esp_heap_caps.h").write_text('#include_next "esp_heap_caps.h"\n'
-                'static inline void *heap_caps_calloc(size_t n,size_t s,int c) {(void)c;return calloc(n,s); }\n')
+
             sources = [ROOT / "tests/epaper_cards_status_harness.c"] + [
                 ROOT / "main" / name for name in ("epaper_cards.c", "card_fonts.c", "card_icons.c")]
             binary = compile_host(out, sources, flags=["-I", str(ROOT / "avatar")])

@@ -1,0 +1,153 @@
+<!--
+Copyright (c) 2026 limengdu
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+# reTerminal E1001 家庭关怀看板
+
+给父母厨房里的大字屏，也给住在远处的家人一个及时联系的入口。家人随时告诉 Muse
+要留言或提醒什么，父母按一下按键，就能把确认、报平安或回电请求送回家人的 Muse。
+电子纸持续保留画面，日常信息一眼可见。
+
+[English](README.md)
+
+## 硬件和按键
+
+使用 Seeed reTerminal E1001：800×480 黑白 UC8179 电子纸、Wi-Fi、板载 SHT4x
+温湿度传感器和 PCF8563 时钟。
+
+| 控件 | 配对完成后的作用 |
+|---|---|
+| 绿色键 GPIO3 | 确认最早的到点或漏确认提醒；没有待确认提醒时，已读最新未读留言 |
+| 左白键 GPIO4 | 向 Muse 报平安：“I'm OK today” |
+| 右白键 GPIO5 | 请家人回电：“Please call me” |
+| 绿色灯 GPIO6 | 有到点提醒时闪烁 |
+| 蜂鸣器 GPIO45 | 温和的提醒声，以及按键成功后的短提示音 |
+
+按键和指示灯均为低电平有效。RTC 地址为 `0x51`，和 SHT4x 共用 I2C0，SDA19/SCL20。
+引脚和电平依据 Seeed E1001 V1.2 原理图、厂商贡献的
+[Zephyr 板级定义](https://github.com/zephyrproject-rtos/zephyr/tree/main/boards/seeed/reterminal_e1001)，
+实现旁的来源说明见 [`reterminal_io.c`](../../esp32/main/reterminal_io.c)。
+绿色键继续承担配对确认和进入配置的作用，长按五秒仍会重置配置。
+护理按键只在配置完成且没有待确认配对时生效。
+
+## 编译、安装和配对
+
+1. 按[入门指南](../../README.zh-CN.md#方法-c自己编译)安装并启用 **ESP-IDF v6.0.1**。
+2. 在本仓库 `esp32/` 下编译：
+
+   ```sh
+   tools/board.sh reterminal-e1001 build
+   ```
+
+3. 按根目录的[SDK token 设置步骤](../../README.zh-CN.md#4-填入-sdk-token)，
+   将自己的 token 填入此板卡的生成配置，然后再次编译。
+4. 按设备指南备份原固件，连接 E1001 的控制台 USB 后安装：
+
+   ```sh
+   tools/board.sh reterminal-e1001 flash
+   ```
+
+5. 在 Muse app 中添加广播名为 `MuseGadget-Disp-…` 的设备，填写家中 Wi-Fi，按绿色键确认。
+   详见[在 Muse app 里添加设备](../../README.zh-CN.md#第-3-步在-muse-app-里添加设备)。
+6. 打开本项目的 [`SKILL.md`](SKILL.md)，把完整内容粘贴给家人的 Muse，并指定这台 E1001。
+   首次使用时告诉 Muse 父母称呼、接收信息的家人及父母所在地时区；Muse 会设置 UTC 和时差。
+
+E1001 的配置已启用本项目及共享基础，生成设置位于 `build-reterminal-e1001/`。
+固件、命令和技能均来自本仓库。已配置设备升级时保留原有配对。
+
+## 可以怎样告诉 Muse
+
+- “把这块看板设给 Dad 使用，确认后告诉 Mia。他在伦敦。”
+- “每天早上八点提醒 Dad 吃降压药，八点半还没确认就告诉我。”
+- “告诉 Dad，我晚上七点回家吃饭，爱他。”
+- “护理员明天上午十点来，放一个一次性提醒。”
+- “更新今天的天气，提醒 Dad 带伞。”
+- “Dad 确认过那个提醒了吗？”
+
+Muse 用 `care.update` 更新内容，用 `care.state` 查询当前事实。
+`add_message` 新留言会显示 NEW，并响一次轻柔提示音。
+提醒到点时，页面显示大字 “Time for …”，绿灯闪烁并播放短提示，五分钟、十分钟后
+最多各重复一次，总共不超过三次。超过确认时限后，提醒显示 MISSED 并通知 Muse。
+
+绿色键优先确认最早的到点或漏确认提醒；没有待确认提醒时，已读最新未读留言；
+都处理过时，显示 “Nothing to confirm”。同一按键两秒内重复按下会被忽略，成功操作有短音。
+
+家人的 Muse 聊天中会看到类似内容：
+
+> Dad confirmed "Blood pressure pill" (due 08:00) at 08:03.
+>
+> Dad has not confirmed "Blood pressure pill" 30 minutes after 08:00.
+>
+> Dad checked in: I'm OK today.
+>
+> Dad asked Mia to call.
+
+看板确认后显示勾号和 “Told Mia at 08:03”，回电请求显示 “Asked Mia to call you”。
+Muse 会及时转达漏确认和回电请求，并建议直接打电话联系。
+家人手机如何收到 Muse 聊天提醒，取决于账号通知设置。
+
+## 命令和恢复
+
+| 命令 | 用途 |
+|---|---|
+| `care.update` | 更新称呼、家人、标题、天气；替换留言或提醒，追加 `add_message`；用 `now_epoch` 和 `utc_offset_min` 设置时间；返回当前状态 |
+| `care.state` | 返回完整模型、提醒状态和确认时间、按键与报平安记录、时钟有效性、RTC/保存状态和室内读数 |
+| `care.clear` | 回到普通状态页，模型保留；下次 `care.update` 再打开关怀看板 |
+
+提醒包含 `id`、`time`（`HH:MM`）、`label`、可选图标 `icon`、`repeat`（`daily` 或 `once`），
+以及确认时限 `escalate_min`（1～1440，默认 30 分钟）。替换提醒列表时，ID 和时间均相同的
+条目保留运行状态。新设时间今天已经过去时，从明天开始等待。
+如果今天十点已过去，“明天十点”可直接使用该规则；如果今天十点仍未到，Muse 应在目标
+日期通过自己的定时能力安装该一次性提醒。
+
+本地午夜会重置每日提醒，并移除已结束的一次性提醒。每日条目的本轮确认窗口也在午夜重置；
+设置提醒时间和确认时限时，让两者处于同一个本地日内。
+一次性提醒保留其已安排的那一轮，直至结束。
+`care.clear` 只切换页面，提醒继续运行；将 `reminders` 更新为 `[]` 可结束当前提醒计划。
+
+配置、留言、提醒运行状态和按键记录保存在带版本、校验值的 NVS 数据块中。
+断电后，RTC 有效时恢复 UTC，SNTP 和 Muse 设置时间时同步写入 RTC；本地时差另行保存。
+夏令时变化时可让 Muse 更新时差。
+
+## 日常使用和边界
+
+- 这是家庭提醒与沟通工具，**不是医疗设备**。绿色键记录的是确认操作；
+  是否实际服药，应通过与父母沟通核实。遇到紧急健康情况，直接电话联系或寻求当地帮助。
+- 界面和字体支持英文/ASCII，以及 `° • – — ’ “ ” …`。
+  父母称呼最多 31 字节，家人/留言人 39，标题 55；每条留言 191 字节、最多三条；
+  提醒 ID 最多 31 个字母、数字、`_`、`-`，标签 63 字节、最多八条。
+  屏幕显示最新留言和最多四行提醒。
+- 天气由 Muse 提供，温度使用摄氏度；天气文字最多 87 字节。
+  图标名见 [`gen_card_assets.py`](../../esp32/tools/gen_card_assets.py)。
+- 事件送达需要 Wi-Fi 和 Muse 会话。待发事件暂存在内存中，`events.poll` 可补查本次开机
+  最近 32 条事件；断电会清空这份事件记录，护理模型仍会恢复。
+- 电子纸全屏刷新会闪烁，约两秒完成。可见状态变化和午夜时刷新，室内读数也在该次刷新中显示。
+- 家庭安装时检查 RTC 备用供电和 Wi-Fi 覆盖，保持直接联系父母的方式。
+
+可以让 Muse 按父母当地时间每天 07:00 更新天气与当天安排，形成早晨例行信息页。
+
+## 主机检查和预览
+
+在 `esp32/` 下运行：
+
+```sh
+python3 -m unittest tests.test_care_board tests.test_reterminal_io
+CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_care_board
+```
+
+预览命令生成 `care_day.pgm`、`care_due.pgm` 和 `care_missed.pgm`。
+主机检查覆盖提醒调度、命令校验、保存恢复、排版、按键权限、长按复位兼容、
+指示灯/蜂鸣节拍和 RTC 总线共享。板卡编译、实际声音和刷新时间、RTC 断电走时及
+Muse 真实收发通过设备验证。

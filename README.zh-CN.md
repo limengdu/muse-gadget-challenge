@@ -341,6 +341,9 @@ tools/muse/paced_esptool.py --chip esp32s3 -p /dev/cu.usbmodem5A7A0185113 write-
 
 ## 给开发者
 
+[E1001 家庭关怀看板](projects/care-board/README.zh-CN.md) 提供大字家人留言、本地提醒和按键回报。
+
+
 XIAO 1.47 英寸触摸屏也已获得上游支持。Sticky 使用 Muse 的 FreeInk 电子纸界面，带触摸设置和键盘；头像每秒刷新一次，图片以四级灰度显示。
 
 | | |

@@ -29,6 +29,10 @@ The message is `[source event] summary`, followed by a newline and compact JSON
 when data is supplied. A failed allocation, invalid input or busy queue lock
 returns false. Producers can retry after a false return.
 
+Receive rows and reply candidates are allocated once from PSRAM when available;
+boards without PSRAM allocate them in internal RAM. A PSRAM allocation failure
+leaves event initialization unsuccessful.
+
 One worker sends events in order over Link. It subscribes to `/chat/subscribe`
 before posting JSON to `/chat/stream`, correlates replies with the POST's
 message ID and retains at most 600 UTF-8 bytes of the most recent reply.
@@ -62,6 +66,12 @@ Use `gadget_clock_valid()`, `gadget_clock_epoch()`,
 `gadget_clock_local(&tm)` and `gadget_clock_minutes_of_day()` for page content.
 The last helper returns -1 while UTC is invalid. Local time is UTC plus the
 stored fixed offset; projects can update the offset for daylight saving changes.
+
+`gadget_clock_set_change_cb()` registers a quick notification after SNTP or manual
+clock changes. The callback can wake an application worker for RTC I/O.
+`gadget_clock_restore_utc()` restores UTC while retaining the saved local offset;
+`gadget_clock_offset_minutes()` reads that offset. Care Board uses these hooks for
+its shared PCF8563 hardware clock.
 
 ## Card pages
 

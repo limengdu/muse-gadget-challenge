@@ -51,6 +51,9 @@
 #include "gadget_clock.h"
 #endif
 #include "config_store.h"
+#if CONFIG_HOMEHUB_CARE_BOARD
+#include "care_board.h"
+#endif
 #include "wifi_mgr.h"
 #include "wifi_known.h"
 #include "customer_product_info.h"
@@ -1875,6 +1878,11 @@ static cJSON *on_ws_command(
         return ble_commands_handle(command, params, request_id, session_generation);
     }
 #endif
+#if CONFIG_HOMEHUB_CARE_BOARD
+    if (!strcmp(command, "care.update") || !strcmp(command, "care.state") || !strcmp(command, "care.clear")) {
+        return care_board_command(command, params, request_id, session_generation);
+    }
+#endif
 #if CONFIG_HOMEHUB_GADGET_EVENTS
     if (strcmp(command, "events.poll") == 0) {
         return gadget_events_command(params);
@@ -2214,6 +2222,12 @@ static void open_setup_window(const char *reason) {
     enter_advertising_state(reason);
 }
 
+#if CONFIG_HOMEHUB_CARE_BOARD
+static bool care_keys_ready(void) {
+    return config_setup_complete() && !link_pairing_confirmation_required();
+}
+#endif
+
 static void on_button_short_press(void) {
     factory_test_on_button_press();
 
@@ -2471,6 +2485,9 @@ static void ws_unpaired_task(void *arg) {
 }
 
 static void on_ws_control_status(const char *status) {
+#if CONFIG_HOMEHUB_CARE_BOARD
+    care_board_notify();
+#endif
     ble_server_send_status(status);
     ui_set_status(status);
     if (strcmp(status, "ws_connected") == 0) {
@@ -2783,6 +2800,9 @@ void app_run(void) {
 #endif
 #if CONFIG_HOMEHUB_SENSECAP_SENSORS
     sensecap_sensors_init();
+#endif
+#if CONFIG_HOMEHUB_CARE_BOARD
+    if (!care_board_init(care_keys_ready)) ESP_LOGW(TAG, "Care Board init failed");
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
     reterminal_sht4x_init();

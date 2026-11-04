@@ -22,7 +22,8 @@
 static time_t clock_value;
 static char persisted[16];
 static bool write_fail;
-static int sntp_calls, command_results;
+static int sntp_calls, command_results, clock_changes;
+static void changed(void) { clock_changes++; }
 
 time_t fake_time(time_t *out) { if (out) *out = clock_value; return clock_value; }
 int fake_settimeofday(const struct timeval *tv, const struct timezone *tz) {
@@ -40,6 +41,7 @@ bool config_set_str(const char *key, const char *value) {
 }
 esp_err_t esp_netif_sntp_init(const esp_sntp_config_t *config) {
     assert(!strcmp(config->servers[0], "pool.ntp.org") && config->start && !config->wait_for_sync);
+    assert(config->sync_cb); config->sync_cb(NULL);
     sntp_calls++; return ESP_OK;
 }
 BaseType_t xTaskCreate(TaskFunction_t task, const char *name, unsigned stack,
@@ -56,6 +58,8 @@ void noise_ctrl_send_command_result(noise_ctrl_session_generation_t generation,
 
 int main(void) {
     gadget_clock_init();
+    gadget_clock_set_change_cb(changed);
+    assert(!gadget_clock_restore_utc(0));
     assert(!gadget_clock_valid() && gadget_clock_minutes_of_day() == -1);
     struct tm local;
     assert(!gadget_clock_local(&local) && !gadget_clock_local(NULL));
@@ -72,7 +76,9 @@ int main(void) {
     assert(!gadget_clock_set(1704067200LL, 100));
     assert(gadget_clock_minutes_of_day() == 1380);
     write_fail = false;
-    gadget_clock_wifi_up(); gadget_clock_wifi_up(); assert(sntp_calls == 1);
+    gadget_clock_wifi_up(); gadget_clock_wifi_up(); assert(sntp_calls == 1 && clock_changes == 3);
+    assert(gadget_clock_offset_minutes() == -60);
+    assert(gadget_clock_restore_utc(1704067260LL) && clock_changes == 4);
     const char *invalid[] = {"{}", "{\"utc_epoch\":1,\"utc_offset_min\":0}",
         "{\"utc_epoch\":1704067200,\"utc_offset_min\":0.5}",
         "{\"utc_epoch\":1704067200,\"utc_offset_min\":-841}",

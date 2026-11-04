@@ -19,6 +19,17 @@
 #include "gadget_events.c"
 
 static int64_t now;
+#ifdef LINK_FAKE_CUSTOM_CALLOC
+static bool fail_calloc;
+static unsigned psram_allocations, internal_allocations;
+bool esp_psram_is_initialized(void) { return TEST_PSRAM_AVAILABLE; }
+void *heap_caps_calloc(size_t count, size_t size, int caps) {
+    if (caps & MALLOC_CAP_SPIRAM) psram_allocations++;
+    else { assert(caps & MALLOC_CAP_INTERNAL); internal_allocations++; }
+    if (fail_calloc) return NULL;
+    return calloc(count, size);
+}
+#endif
 static bool connected = true, fail_lock, fail_open, no_reply;
 static unsigned opens, sends, cancels, delays, notifications;
 static bool run_worker;
@@ -115,6 +126,11 @@ static double number(const cJSON *json, const char *key) {
 
 static void queue_tests(void) {
     assert(!gadget_events_post("button", "early", NULL));
+#ifdef LINK_FAKE_CUSTOM_CALLOC
+    fail_calloc = true; assert(!gadget_events_init()); fail_calloc = false;
+    if (TEST_PSRAM_AVAILABLE) assert(psram_allocations == 2 && internal_allocations == 0);
+    else assert(psram_allocations == 0 && internal_allocations == 2);
+#endif
     assert(gadget_events_init() && gadget_events_init());
     cJSON *data = cJSON_Parse("{\"pressed\":true,\"count\":2}");
     assert(gadget_events_post("button", "Ready \"now\"", data));
@@ -180,7 +196,7 @@ static void queue_tests(void) {
 
 static void parser_tests(void) {
     xSemaphoreTake(s_rx_lock, portMAX_DELAY);
-    memset(s_candidates, 0, sizeof(s_candidates)); s_candidate_next = 0;
+    memset(s_candidates, 0, 4 * sizeof(*s_candidates)); s_candidate_next = 0;
     strcpy(s_note_id, "my-note"); s_parent_id[0] = s_echo_id[0] = s_rx_reply[0] = 0;
     s_replied = false;
     xSemaphoreGive(s_rx_lock);
