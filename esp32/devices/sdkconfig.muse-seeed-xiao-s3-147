@@ -34,3 +34,5 @@ CONFIG_MUSE_CJK_FONT=y
 # PDM microphone only: the board has no speaker. No battery/IMU/SD yet.
 # Use local reflashing while this new board profile is being validated.
 CONFIG_HOMEHUB_OTA_ENABLED=n
+
+CONFIG_MUSE_DOOR_SIGN=y

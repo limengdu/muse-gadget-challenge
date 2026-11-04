@@ -22,3 +22,5 @@
 /* The desktop board profile and the SDL display it creates. */
 const muse_board_t *sim_board_get(void);
 lv_display_t *sim_board_display(void);
+
+void sim_board_configure(int width, int height, bool round);

@@ -51,6 +51,9 @@
 #include "gadget_clock.h"
 #endif
 #include "config_store.h"
+#if CONFIG_MUSE_DOOR_SIGN
+#include "door_sign.h"
+#endif
 #include "wifi_mgr.h"
 #include "wifi_known.h"
 #include "customer_product_info.h"
@@ -1870,6 +1873,11 @@ static cJSON *bug_report_command(
 static cJSON *on_ws_command(
     const char *command, cJSON *params, const char *request_id,
     noise_ctrl_session_generation_t session_generation) {
+#if CONFIG_MUSE_DOOR_SIGN
+    if (strcmp(command, "sign.set") == 0 || strcmp(command, "sign.get") == 0 || strcmp(command, "sign.clear") == 0) {
+        return door_sign_command(command, params, request_id, session_generation);
+    }
+#endif
 #if CONFIG_HOMEHUB_BLE_COMMANDS
     if (ble_commands_handles(command)) {
         return ble_commands_handle(command, params, request_id, session_generation);
@@ -2657,6 +2665,9 @@ void app_run(void) {
     } else {
         ESP_LOGW(TAG, "gadget events init failed");
     }
+#endif
+#if CONFIG_MUSE_DOOR_SIGN
+    if (!door_sign_init()) ESP_LOGW(TAG, "door sign init failed");
 #endif
     heap_snapshot("after noise_ctrl_init");
 #if CONFIG_HOMEHUB_BLE_COMMANDS

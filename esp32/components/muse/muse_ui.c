@@ -15,6 +15,9 @@
  */
 
 #include "muse_ui.h"
+#if CONFIG_MUSE_DOOR_SIGN
+#include "muse_door_sign_view.h"
+#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -1303,6 +1306,10 @@ static bool update_sleep(void)
         s_dark = true;
     } else if (!asleep && s_dark) {
         s_dark = false;
+#if CONFIG_MUSE_DOOR_SIGN
+        door_sign_snapshot_t sign;
+        if (door_sign_snapshot(&sign) && sign.sign.active) muse_ui_show_face();
+#endif
         if (muse_board->panel_sleep) {
             muse_board->panel_sleep(false);
         }
@@ -1715,6 +1722,9 @@ static void frame_tick(lv_timer_t *timer)
         image_hide_locked();
         return;   /* the menu covers the face */
     }
+#if CONFIG_MUSE_DOOR_SIGN
+    if (door_sign_view_update(mode == MUSE_MODE_IDLE && !s_image_dsc.data)) return;
+#endif
     if (s_image_dsc.data) {
         return;   /* the image covers the face */
     }
@@ -1793,6 +1803,9 @@ esp_err_t muse_ui_start(void)
     } else {
         muse_menu_build(lv_screen_active(), s_w, s_h);
     }
+#if CONFIG_MUSE_DOOR_SIGN
+    door_sign_view_create(s_face ? s_face : lv_screen_active(), s_w, s_h, muse_board->round);
+#endif
     build_overlays();
     lv_timer_create(frame_tick, muse_board->frame_ms, NULL);
     s_ready = true;

@@ -236,6 +236,30 @@ if(BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_simulator.py
         TIMEOUT 60
     )
 
+    add_executable(muse_door_sign_test
+        tests/door_sign_harness.c src/sim_board.c src/sim_platform.c src/sim_services.c
+        "${MUSE_COMPONENT_DIR}/muse_ui.c"
+        "${MUSE_COMPONENT_DIR}/muse_state.c"
+        "${MUSE_COMPONENT_DIR}/muse_text.c"
+        "${MUSE_SIM_AVATAR_SOURCE}")
+    target_include_directories(muse_door_sign_test PRIVATE compat include src "${MUSE_COMPONENT_DIR}")
+    target_compile_definitions(muse_door_sign_test PRIVATE CONFIG_MUSE_DOOR_SIGN=1 CONFIG_LV_USE_SNAPSHOT=1)
+    target_compile_options(muse_door_sign_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_libraries(muse_door_sign_test PRIVATE ${MUSE_SIM_LVGL_TARGET} ${MUSE_SIM_SDL_TARGET} Threads::Threads m)
+    if(APPLE)
+        target_link_libraries(muse_door_sign_test PRIVATE ${MUSE_SIM_IOKIT_FRAMEWORK})
+    endif()
+    if(MUSE_SIM_WARNINGS_AS_ERRORS)
+        target_compile_options(muse_door_sign_test PRIVATE -Werror)
+    endif()
+    if(MUSE_SIM_SANITIZERS)
+        target_compile_options(muse_door_sign_test PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(muse_door_sign_test PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    endif()
+    add_test(NAME muse_door_sign COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_door_sign.py" --binary "$<TARGET_FILE:muse_door_sign_test>")
+    set_tests_properties(muse_door_sign PROPERTIES ENVIRONMENT "${MUSE_SIM_TEST_ENVIRONMENT}" TIMEOUT 60)
+
     add_executable(muse_settings_text_test
         tests/settings_text_harness.c
         "${MUSE_COMPONENT_DIR}/muse_keypad.c"

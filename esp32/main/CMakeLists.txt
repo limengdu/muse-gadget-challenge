@@ -95,6 +95,10 @@ else()
     list(APPEND GADGET_SRCS "led_status.c")
 endif()
 
+if(CONFIG_MUSE_DOOR_SIGN)
+    list(APPEND GADGET_SRCS "door_sign.c" "door_sign_model.c")
+endif()
+
 if(CONFIG_HOMEHUB_GADGET_EVENTS)
     list(APPEND GADGET_SRCS "gadget_events.c")
 endif()

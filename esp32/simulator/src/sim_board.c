@@ -34,7 +34,7 @@ static esp_err_t sim_init(void)
 
 static lv_display_t *sim_display_start(lv_indev_t **touch)
 {
-    s_display = lv_sdl_window_create(WATCHER_RESOLUTION, WATCHER_RESOLUTION);
+    s_display = lv_sdl_window_create(muse_board->width, muse_board->height);
     if (!s_display) {
         return NULL;
     }
@@ -74,7 +74,7 @@ static esp_err_t sim_power_off(void)
     return ESP_FAIL;
 }
 
-static const muse_board_t s_sim_board = {
+static muse_board_t s_sim_board = {
     .name = "SenseCAP Watcher Simulator",
     .width = WATCHER_RESOLUTION,
     .height = WATCHER_RESOLUTION,
@@ -102,4 +102,11 @@ const muse_board_t *sim_board_get(void)
 lv_display_t *sim_board_display(void)
 {
     return s_display;
+}
+
+void sim_board_configure(int width, int height, bool round)
+{
+    s_sim_board.width = width;
+    s_sim_board.height = height;
+    s_sim_board.round = round;
 }

@@ -41,6 +41,9 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "lwip/sockets.h"
+#if CONFIG_MUSE_DOOR_SIGN
+#include "door_sign.h"
+#endif
 
 extern "C" {
 #include "cJSON.h"
@@ -1496,6 +1499,9 @@ static char *build_register_json(void) {
     }
 #endif
 
+#if CONFIG_MUSE_DOOR_SIGN
+    door_sign_register(commands);
+#endif
 #if CONFIG_HOMEHUB_GADGET_EVENTS
     cJSON *events_optional = cJSON_CreateObject();
     cJSON *since_param = cJSON_CreateObject();
