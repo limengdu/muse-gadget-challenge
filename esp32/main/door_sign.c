@@ -285,13 +285,13 @@ void door_sign_register(cJSON *commands)
     cJSON *required = cJSON_CreateObject();
     parameter(required, "state", "string", "meeting|focus|free|away|custom");
     cJSON *optional = cJSON_CreateObject();
-    parameter(optional, "title", "string", "Title, 1-40 UTF-8 bytes");
-    parameter(optional, "subtitle", "string", "Detail, up to 80 UTF-8 bytes");
+    parameter(optional, "title", "string", "Prefer one word, <=10 characters; omit for state word. Accepts 1-40 UTF-8 bytes");
+    parameter(optional, "subtitle", "string", "Optional detail, up to 80 UTF-8 bytes; not shown on narrow screens");
     parameter(optional, "until", "string|integer", "Next local HH:MM or future UTC epoch; clock.set first");
     parameter(optional, "color", "string", "Custom only: #RRGGBB");
     parameter(optional, "owner", "string", "Door owner, 1-24 UTF-8 bytes; default Dad");
-    parameter(optional, "replies", "array", "0-3 distinct labels, 1-28 UTF-8 bytes each; defaults per state");
-    command(commands, "sign.set", "Replace and save the door sign. Taps send door-sign events to chat.", required, optional);
+    parameter(optional, "replies", "array", "0-3 distinct labels; prefer <=12 characters: Dinner, Need you, Parcel, Call me. Accepts 1-28 UTF-8 bytes each");
+    command(commands, "sign.set", "Replace and save the door sign. Use short status and reply words. Taps send door-sign events to chat.", required, optional);
     command(commands, "sign.get", "Read the saved door sign and active flag.", NULL, NULL);
     command(commands, "sign.clear", "Save the sign as inactive and return to the Muse face.", NULL, NULL);
 }

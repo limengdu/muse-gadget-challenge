@@ -80,7 +80,8 @@ def main():
                 assert proc.returncode == 0, proc.stdout + proc.stderr
                 captures.append({p.stem: p.read_bytes() for p in directory.glob("*.ppm")})
             assert captures[0] == captures[1], "Door sign screenshots changed between identical runs"
-            assert len(set(captures[0].values())) == 4, "Sign, reply, face and custom must be distinct"
+            assert set(captures[0]) == {"meeting", "sent", "face", "custom", "free"}
+            assert len(set(captures[0].values())) == 5, "Sign, reply, face, custom and free must be distinct"
             for name, data in captures[0].items():
                 reference = references / f"{width}x{height}-{name}.png"
                 rendered = png(data)

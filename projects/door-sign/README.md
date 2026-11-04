@@ -28,10 +28,10 @@ your own Muse chat.
 
 ## What it does
 
-- Red **In a meeting**, amber **Focusing**, green **Come in**, blue **Away**, or a custom title and colour.
-- An optional subtitle, door owner's name, local end time and countdown.
-- Up to three large reply buttons, with three-second confirmation and a shared ten-second tap cooldown.
-- At the deadline, the sign becomes **Come in** and sends an expiry notice to Muse.
+- Red **Meeting**, amber **Focus**, green **Free**, blue **Away**, or a custom title and colour.
+- The owner's name, a large state icon and a local end time. Narrow screens show this compact sign with reply buttons.
+- Up to three 44 px reply buttons, pairing common messages with icons and short words. The tapped button shows **✓ Sent** for three seconds, with a shared ten-second tap cooldown.
+- At the deadline, the sign becomes **Free** and sends an expiry notice to Muse.
 - The sign, deadline and reply labels are saved in NVS, the board's persistent settings storage. `sign.clear` saves an inactive sign and restores the Muse face.
 - Settings remain one swipe left. Holding USR1 records through the existing voice-note flow; the normal face and reply captions appear during the conversation. USR2 sleeps or wakes the display; waking returns to the sign.
 
@@ -81,8 +81,8 @@ configuration, event queuing and `events.poll` recovery.
 ## Things to say to Muse
 
 - “I'm in a meeting until 3. Put Dad on the door and let the family tell me dinner is ready.”
-- “I'm focusing for an hour. Offer Need you and Parcel arrived.”
-- “I'm free now. Show Come in.”
+- “I'm focusing for an hour. Offer Need you and Parcel.”
+- “I'm free now. Show Free.”
 - “Show Recording with a purple background until 4.”
 - “Set Focus every weekday from 9 to 11.”
 - “Follow my work calendar during office hours, then clear the sign after work.”
@@ -92,8 +92,8 @@ and routines. The device holds one current sign and one deadline.
 
 ## What people at home do
 
-Read the colour and title. Tap one reply, then look for **Sent to Dad** and the
-highlighted button. This confirms the message entered the shared event queue;
+Read the colour, icon and status word. Tap one reply, then look for **✓ Sent**
+inside the highlighted button for three seconds. This confirms the message entered the shared event queue;
 Muse delivery follows the network connection. Repeated taps within ten seconds
 are ignored. Hold **USR1** while speaking, then release to send the voice note.
 Muse's answer appears as text. Press **USR2** to sleep or wake the screen.
@@ -109,26 +109,32 @@ Both read and clear take an empty object or no parameters.
 {
   "state": "meeting",
   "owner": "Dad",
-  "title": "In a meeting",
-  "subtitle": "Please leave a message",
   "until": "15:00",
-  "replies": ["Dinner is ready", "Need you", "Parcel arrived"]
+  "replies": ["Dinner", "Need you", "Parcel"]
 }
 ```
 
 | Field | Accepted values |
 |---|---|
 | `state` | Required: `meeting`, `focus`, `free`, `away`, `custom` |
-| `title` | 1–40 UTF-8 bytes; default title for the state |
-| `subtitle` | 0–80 UTF-8 bytes; default empty |
+| `title` | 1–40 UTF-8 bytes; use at most 10 characters, preferably one word, or omit for the state's on-screen word |
+| `subtitle` | Optional, 0–80 UTF-8 bytes; default empty, not shown on narrow screens |
 | `owner` | 1–24 UTF-8 bytes; default `Dad` |
 | `until` | A future UTC epoch integer in 2024–2099, or exact local `HH:MM` for its next occurrence; requires a valid clock |
 | `color` | `#RRGGBB`, for `custom` only; default purple |
-| `replies` | 0–3 distinct, nonempty labels, each up to 28 UTF-8 bytes; `[]` hides all reply buttons |
+| `replies` | 0–3 distinct, nonempty labels, each up to 28 UTF-8 bytes; use at most 12 characters each, such as `Dinner`, `Need you`, `Parcel`, `Call me`; `[]` hides all reply buttons |
 
-Titles, owners and replies use printable text. Longer visible text ends with an
-ellipsis on the small screen. Keep labels short and use the board's Latin display
-fonts for sign text. Existing voice reply captions retain their normal language support.
+Titles, owners and replies use printable text matching the board's Latin display
+fonts. Status words use 28 px; a longer custom title uses 20 px over up to two
+lines. Replies use 20 px, with 16 px available for wider words. Text is measured
+before display, with an ellipsis for content exceeding the available two lines.
+The owner uses 16 px and the end time 20 px. Existing voice reply captions retain
+their normal language support. The accepted payload limits remain unchanged.
+
+Common reply payloads such as `Dinner is ready` and `Parcel arrived` display as
+home icon + **Dinner** and envelope icon + **Parcel**; **Need you** uses a bell.
+`Call me` uses a phone, `OK` a checkmark, and other replies use text. Events and
+`sign.get` retain the original message text. The stored default replies are:
 
 | State | Default replies |
 |---|---|
@@ -145,7 +151,7 @@ JSON data distinguishes `kind: reply` and `kind: expired`. Voice notes use Muse'
 existing voice channel; the skill identifies them as visitor messages while the sign is active.
 
 The deadline is saved as an absolute epoch, including times crossing midnight.
-After a reboot, time synchronization resumes the countdown and expires overdue signs.
+After a reboot, time synchronization restores the local end time and expires overdue signs.
 The clock uses a stored UTC offset; Muse updates it for travel or daylight saving time.
 An unset clock permits an untimed sign and omits timestamps from taps.
 

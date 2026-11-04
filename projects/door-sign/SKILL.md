@@ -45,18 +45,24 @@ and daylight saving changes. Use an untimed sign when accurate time is unavailab
 `sign.set` replaces the whole sign and saves it across reboot. Supply the owner
 and any details you want to retain on each call. Supported states:
 
-| Request | State and default title |
+| Request | State and on-screen word |
 |---|---|
-| Meeting, call or presentation | `meeting`, red `In a meeting` |
-| Concentration, studying or writing | `focus`, amber `Focusing` |
-| Available, welcome to enter | `free`, green `Come in` |
+| Meeting, call or presentation | `meeting`, red `Meeting` |
+| Concentration, studying or writing | `focus`, amber `Focus` |
+| Available, welcome to enter | `free`, green `Free` |
 | Out, school run or walking | `away`, blue `Away` |
-| Recording, resting or another short message | `custom`, purple `My door`; provide a short title |
+| Recording, resting or another short message | `custom`, purple `Custom`; provide a short title |
 
-Use a short title (up to 40 UTF-8 bytes), optional subtitle (80), owner (24),
-and zero to three distinct reply labels (28 bytes each). Short English labels
-fit the sign's fonts. Choose replies for the moment: `Dinner is ready`, `Need you`
-and `Parcel arrived` during a meeting; `Call me` and `I'm home` while away.
+Keep the status `title` at **10 characters or fewer**, preferably one word, or
+omit it to use the state's on-screen word. Keep each reply at **12 characters or
+fewer**, with one or two words. Choose `Dinner`, `Need you` and `Parcel` during a
+meeting; `Call me` and `Come home` while away. Use short English labels matching
+the display's Latin fonts. The owner name appears on its own.
+
+The firmware accepts titles up to 40 UTF-8 bytes, an optional subtitle up to 80,
+an owner up to 24, and zero to three distinct replies up to 28 bytes each.
+Subtitle is optional and is not shown on narrow screens. The screen pairs common
+replies with icons and compact words; tap events retain the original reply text.
 Use `replies: []` when the user wants just a status. `color` accepts `#RRGGBB`
 for custom state. Fixed states keep their own colours.
 
@@ -70,7 +76,7 @@ keeps the owner and restores the free state's default title and replies.
 Example arguments for `sign.set`:
 
 ```json
-{"state":"meeting","owner":"Dad","until":"15:00","subtitle":"Please leave a message","replies":["Dinner is ready","Need you","Parcel arrived"]}
+{"state":"meeting","owner":"Dad","until":"15:00","replies":["Dinner","Need you","Parcel"]}
 ```
 
 Read the command result before saying the sign was updated. On an uncertain
@@ -83,14 +89,15 @@ the ordinary Muse face back. `free` keeps an active green door sign instead.
 An accepted tap produces a message such as:
 
 ```text
-[door-sign event] Someone at Dad's door tapped "Dinner is ready" (18:32).
-{"kind":"reply","owner":"Dad","reply":"Dinner is ready","state":"meeting"}
+[door-sign event] Someone at Dad's door tapped "Dinner" (18:32).
+{"kind":"reply","owner":"Dad","reply":"Dinner","state":"meeting"}
 ```
 
 Relay it promptly in the owner's chat: “Someone at your door says dinner is ready.”
 Keep the label's meaning and time; attribute it to someone at the door. Buttons
-have a shared ten-second cooldown. “Sent to Dad” means the event entered the
-device queue; delivery may wait for the network. Use `events.poll` with the last
+have a shared ten-second cooldown. A checkmark and “Sent” inside the tapped button
+for three seconds mean the event entered the device queue; delivery may wait for
+the network. Use `events.poll` with the last
 sequence number to recover missed events during the same boot, and check `dropped`.
 Match already-relayed sequence numbers to keep catch-up concise.
 
@@ -119,7 +126,7 @@ Use Muse's available scheduling and calendar tools for routines the owner asks f
 - Follow work calendar: show `meeting` for a connected calendar event, using its
   end epoch; preserve busy status across overlapping events, and use the latest
   authoritative calendar state before applying the next sign.
-- Dinner time: offer `Dinner is ready` and `Need you`.
+- Dinner time: offer `Dinner` and `Need you`.
 - End of work: call `sign.clear` at the chosen time.
 
 The device stores one current sign and one deadline. Calendar following and

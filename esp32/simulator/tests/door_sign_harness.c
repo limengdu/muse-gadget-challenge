@@ -33,12 +33,14 @@
 
 static door_sign_snapshot_t model;
 static unsigned replies;
+static char last_reply[DOOR_SIGN_REPLY_BYTES];
 
 bool door_sign_snapshot(door_sign_snapshot_t *out) { *out = model; return true; }
 bool door_sign_reply(unsigned index, uint32_t revision)
 {
     assert(index < model.sign.reply_count && revision == model.revision);
     replies++;
+    strcpy(last_reply, model.sign.replies[index]);
     model.sent_reply = (int)index;
     model.sent_us = esp_timer_get_time();
     return true;
@@ -58,6 +60,24 @@ static void inside(lv_obj_t *obj, int w, int h)
     lv_obj_get_coords(obj, &area);
     assert(area.x1 >= 0 && area.y1 >= 0 && area.x2 < w && area.y2 < h);
     assert(area.x1 <= area.x2 && area.y1 <= area.y2);
+}
+
+// Match the visible text, including the prefix of an ellipsized label.
+// 匹配可见文字，包括省略号前的文字前缀。
+static void visible_text(lv_obj_t *obj, const char *expected)
+{
+    const char *text = lv_label_get_text(obj);
+    const char *dots = strstr(text, "...");
+    if (dots) assert(dots > text && !strncmp(text, expected, (size_t)(dots - text)));
+    else assert(!strcmp(text, expected));
+}
+
+static void above(lv_obj_t *upper, lv_obj_t *lower)
+{
+    lv_area_t a, b;
+    lv_obj_get_coords(upper, &a);
+    lv_obj_get_coords(lower, &b);
+    assert(a.y2 < b.y1);
 }
 
 static void snapshot(const char *directory, const char *name)
@@ -131,26 +151,67 @@ int main(int argc, char **argv)
     advance(300);
     assert(s_have_shown && !lv_obj_has_flag(s_root, LV_OBJ_FLAG_HIDDEN));
     lv_obj_update_layout(s_root);
-    inside(s_owner, w, h); inside(s_block, w, h); inside(s_title, w, h); inside(s_detail, w, h);
+    inside(s_owner, w, h); inside(s_block, w, h); inside(s_title, w, h);
+    inside(s_icon, w, h); inside(s_until, w, h);
+    assert(lv_obj_get_style_text_font(s_title, 0) == &lv_font_montserrat_28);
+    assert(lv_obj_get_style_text_font(s_icon, 0) == &lv_font_montserrat_28);
+    assert(lv_obj_get_style_text_font(s_until, 0) == &lv_font_montserrat_20);
+    assert(lv_obj_get_style_text_font(s_owner, 0) == &lv_font_montserrat_16);
+    assert(lv_color_to_u32(lv_obj_get_style_text_color(s_owner, 0)) == lv_color_to_u32(lv_color_hex(0xc3c7ce)));
+    assert(!strcmp(lv_label_get_text(s_owner), "Dad"));
+    assert(!strcmp(lv_label_get_text(s_title), "Meeting"));
+    assert(lv_label_get_long_mode(s_title) == LV_LABEL_LONG_MODE_WRAP);
+    assert(lv_obj_get_child_count(s_root) == 5);
+    above(s_owner, s_block); above(s_icon, s_title); above(s_title, s_until);
+    unsigned dots = 0;
+    lv_obj_t *screen = lv_screen_active();
+    for (unsigned i = 0; i < lv_obj_get_child_count(screen); i++) {
+        lv_obj_t *obj = lv_obj_get_child(screen, (int)i);
+        if (lv_obj_get_width(obj) == 8 && lv_obj_get_height(obj) == 8) {
+            lv_area_t bounds;
+            lv_obj_get_coords(obj, &bounds);
+            assert(bounds.y1 == h - 22 && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN));
+            inside(obj, w, h);
+            dots++;
+        }
+    }
+    assert(dots == 2);
+    const char *meeting_replies[] = {LV_SYMBOL_HOME " Dinner", LV_SYMBOL_BELL " Need you", LV_SYMBOL_ENVELOPE " Parcel"};
     for (unsigned i = 0; i < 3; i++) {
         inside(s_buttons[i], w, h);
         inside(s_labels[i], w, h);
+        assert(lv_obj_get_height(s_buttons[i]) >= 44);
+        assert(lv_obj_get_style_text_font(s_labels[i], 0) == &lv_font_montserrat_20);
+        assert(lv_label_get_long_mode(s_labels[i]) == LV_LABEL_LONG_MODE_WRAP);
+        assert(lv_obj_get_height(s_labels[i]) == lv_font_montserrat_20.line_height);
+        assert(!strcmp(lv_label_get_text(s_labels[i]), meeting_replies[i]));
         lv_area_t bounds, prior;
         lv_obj_get_coords(s_buttons[i], &bounds);
-        lv_obj_get_coords(i ? s_buttons[i-1] : s_detail, &prior);
+        lv_obj_get_coords(i ? s_buttons[i-1] : s_block, &prior);
         if (w <= h) assert(prior.y2 < bounds.y1);
+        assert(bounds.y2 < h - 22);
     }
-    assert(strstr(lv_label_get_text(s_until), "until 15:00"));
+    assert(!strcmp(lv_label_get_text(s_until), "until 15:00"));
     snapshot(argv[4], "meeting");
     lv_indev_t *input = lv_indev_create();
     lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(input, read_pointer);
     lv_indev_set_display(input, sim_board_display());
     tap(input, s_buttons[0]);
-    assert(replies == 1 && !strcmp(lv_label_get_text(s_detail), "Sent to Dad"));
+    assert(replies == 1 && !strcmp(lv_label_get_text(s_labels[0]), LV_SYMBOL_OK " Sent"));
+    assert(!strcmp(last_reply, "Dinner is ready"));
+    assert(!strcmp(lv_label_get_text(s_labels[1]), meeting_replies[1]));
     snapshot(argv[4], "sent");
     advance(3200);
-    assert(!strcmp(lv_label_get_text(s_detail), model.sign.subtitle));
+    assert(!strcmp(lv_label_get_text(s_labels[0]), meeting_replies[0]));
+    for (unsigned i = 1; i < 3; i++) {
+        tap(input, s_buttons[i]);
+        assert(!strcmp(lv_label_get_text(s_labels[i]), LV_SYMBOL_OK " Sent"));
+        assert(!strcmp(last_reply, model.sign.replies[i]));
+    }
+    assert(replies == 3);
+    advance(3200);
+    for (unsigned i = 0; i < 3; i++) assert(!strcmp(lv_label_get_text(s_labels[i]), meeting_replies[i]));
     muse_state_set_mode(MUSE_MODE_LISTENING); advance(300);
     assert(lv_obj_has_flag(s_root, LV_OBJ_FLAG_HIDDEN));
     muse_state_set_mode(MUSE_MODE_SPEAKING); muse_state_set_caption("Dad will come soon."); advance(300);
@@ -166,11 +227,64 @@ int main(int argc, char **argv)
     assert(lv_obj_has_flag(s_root, LV_OBJ_FLAG_HIDDEN) && muse_ui_face_active());
     snapshot(argv[4], "face");
     model.sign.active = true; model.sign.state = DOOR_SIGN_CUSTOM; model.sign.color = 0xffffff;
-    strcpy(model.sign.title, "Please come back after my next meeting");
+    strcpy(model.sign.title, "Please come back later");
     strcpy(model.sign.subtitle, "Leave a note for me here");
-    strcpy(model.sign.replies[0], "Please come downstairs now");
     model.revision++; advance(300);
+    assert(lv_color_to_u32(lv_obj_get_style_text_color(s_title, 0)) == lv_color_to_u32(lv_color_black()));
+    assert(!strcmp(lv_label_get_text(s_title), model.sign.title));
+    assert(lv_label_get_long_mode(s_title) == LV_LABEL_LONG_MODE_WRAP);
+    assert(lv_obj_get_style_text_font(s_title, 0) == &lv_font_montserrat_20);
+    assert(lv_obj_get_height(s_title) <= 2 * lv_font_montserrat_20.line_height);
+    for (unsigned i = 0; i < 3; i++) assert(!strcmp(lv_label_get_text(s_labels[i]), meeting_replies[i]));
+    above(s_icon, s_title); above(s_title, s_until);
     snapshot(argv[4], "custom");
+    model.clock_valid = false; advance(300);
+    assert(!strcmp(lv_label_get_text(s_until), "Sync clock"));
+    model.clock_valid = true;
+    int until_width = lv_obj_get_width(s_until);
+    lv_obj_set_width(s_until, 90); model.revision++; advance(300);
+    assert(!strcmp(lv_label_get_text(s_until), LV_SYMBOL_RIGHT " 15:00"));
+    lv_obj_set_width(s_until, until_width);
+    model.sign.until = 0; model.revision++; advance(300);
+    assert(!strcmp(lv_label_get_text(s_until), ""));
+    model.sign.state = DOOR_SIGN_FREE; model.sign.color = 0x167347;
+    strcpy(model.sign.title, "Come in");
+    strcpy(model.sign.replies[0], "Come here");
+    model.revision++; advance(300);
+    assert(!strcmp(lv_label_get_text(s_title), "Free"));
+    assert(lv_obj_get_style_text_font(s_title, 0) == &lv_font_montserrat_28);
+    assert(!strcmp(lv_label_get_text(s_labels[0]), LV_SYMBOL_BELL " Come here"));
+    assert(!strcmp(lv_label_get_text(s_labels[1]), LV_SYMBOL_BELL " Need you"));
+    strcpy(model.sign.replies[1], "Dinner is ready"); model.revision++; advance(300);
+    assert(!strcmp(lv_label_get_text(s_labels[1]), LV_SYMBOL_HOME " Dinner"));
+    snapshot(argv[4], "free");
+
+    const struct { const char *reply, *display; } mappings[] = {
+        {"Dinner", LV_SYMBOL_HOME " Dinner"}, {"Come home", LV_SYMBOL_HOME " Come home"},
+        {"PARCEL ARRIVED", LV_SYMBOL_ENVELOPE " Parcel"}, {"Parcel", LV_SYMBOL_ENVELOPE " Parcel"},
+        {"Call me", LV_SYMBOL_CALL " Call me"}, {"okay", LV_SYMBOL_OK " OK"},
+        {"I'm home", LV_SYMBOL_HOME " Home"}, {"Visitor", "Visitor"},
+    };
+    for (unsigned i = 0; i < sizeof(mappings) / sizeof(mappings[0]); i++) {
+        strcpy(model.sign.replies[0], mappings[i].reply); model.revision++; advance(100);
+        assert(!strcmp(lv_label_get_text(s_labels[0]), mappings[i].display));
+        assert(lv_label_get_long_mode(s_labels[0]) == LV_LABEL_LONG_MODE_WRAP);
+    }
+    strcpy(model.sign.title, "Quiet"); model.revision++; advance(100);
+    assert(!strcmp(lv_label_get_text(s_title), "Quiet"));
+    assert(lv_obj_get_style_text_font(s_title, 0) == &lv_font_montserrat_28);
+    strcpy(model.sign.title, "Please come back after my next meeting"); model.revision++; advance(100);
+    assert(lv_obj_get_style_text_font(s_title, 0) == &lv_font_montserrat_20);
+    visible_text(s_title, model.sign.title);
+    if (w <= 320) assert(lv_label_get_long_mode(s_title) == LV_LABEL_LONG_MODE_DOTS);
+    strcpy(model.sign.replies[0], "WWWWWWWWWWWW"); model.revision++; advance(100);
+    if (w <= 320) assert(lv_obj_get_style_text_font(s_labels[0], 0) == &lv_font_montserrat_16);
+    strcpy(model.sign.replies[0], "WWWWWWWWWWWWWWWWWWWWWWWWWWWW"); model.revision++; advance(100);
+    visible_text(s_labels[0], model.sign.replies[0]);
+    if (w <= 320) assert(lv_label_get_long_mode(s_labels[0]) == LV_LABEL_LONG_MODE_DOTS);
+    strcpy(model.sign.replies[0], "OK"); model.revision++; advance(100);
+    assert(lv_obj_get_style_text_font(s_labels[0], 0) == &lv_font_montserrat_20);
+    assert(!strcmp(lv_label_get_text(s_labels[0]), LV_SYMBOL_OK " OK"));
     model.sign.reply_count = 0; model.revision++; advance(300);
     for (unsigned i = 0; i < 3; i++) assert(lv_obj_has_flag(s_buttons[i], LV_OBJ_FLAG_HIDDEN));
     lv_indev_delete(input);

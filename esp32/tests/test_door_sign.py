@@ -83,6 +83,15 @@ int main() {
     cJSON *commands=cJSON_GetObjectItem(cJSON_GetObjectItem(root,"params"),"commands_v2");
     const char *names[]={"sign.set","sign.get","sign.clear"};
     for (const char *name:names) assert((cJSON_GetObjectItem(commands,name)!=nullptr)==CONFIG_MUSE_DOOR_SIGN);
+    if (CONFIG_MUSE_DOOR_SIGN) {
+        cJSON *optional=cJSON_GetObjectItem(cJSON_GetObjectItem(commands,"sign.set"),"optional");
+        const char *title=cJSON_GetObjectItem(cJSON_GetObjectItem(optional,"title"),"description")->valuestring;
+        const char *replies=cJSON_GetObjectItem(cJSON_GetObjectItem(optional,"replies"),"description")->valuestring;
+        const char *subtitle=cJSON_GetObjectItem(cJSON_GetObjectItem(optional,"subtitle"),"description")->valuestring;
+        assert(strstr(title,"<=10 characters") && strstr(title,"state word"));
+        assert(strstr(replies,"<=12 characters") && strstr(replies,"Dinner"));
+        assert(strstr(subtitle,"Optional") && strstr(subtitle,"not shown on narrow screens"));
+    }
     printf("XIAO registration option=%d: %zu bytes\\n",CONFIG_MUSE_DOOR_SIGN,strlen(json));
     free(json); cJSON_Delete(root);
 }
