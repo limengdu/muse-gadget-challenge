@@ -20,6 +20,11 @@
 
 typedef void (*button_cb)(void);
 
+// Observes a debounced short release; returning true consumes only that tap.
+// 观察消抖后的短按释放；返回 true 时仅接管本次短按。
+typedef bool (*button_short_observer)(void);
+void button_set_short_press_observer(button_short_observer observer);
+
 bool button_init(button_cb on_short_press, button_cb on_double_press,
                  button_cb on_long_press);
 

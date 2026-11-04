@@ -15,6 +15,10 @@
  */
 
 #include "reterminal_sht4x.h"
+#include "sdkconfig.h"
+#if CONFIG_HOMEHUB_RETERMINAL_IO
+#include "reterminal_io.h"
+#endif
 
 #include <math.h>
 #include <stdbool.h>
@@ -201,9 +205,20 @@ void reterminal_sht4x_init(void) {
     };
     i2c_master_bus_handle_t bus = NULL;
     esp_err_t err = ESP_ERR_NOT_FOUND;
+#if CONFIG_HOMEHUB_RETERMINAL_IO
+    // RTC and SHT4x share the initialized I2C0 bus; master transactions serialize.
+    // RTC 与 SHT4x 共用已初始化的 I2C0，总线驱动串行执行各次事务。
+    err = reterminal_io_i2c_bus(&bus) ? ESP_OK : ESP_FAIL;
+#else
     if (SHT4X_I2C_PORT >= 0) err = i2c_master_get_bus_handle(SHT4X_I2C_PORT, &bus);
+#endif
     bool owns_bus = err != ESP_OK;
+#if !CONFIG_HOMEHUB_RETERMINAL_IO
     if (owns_bus) err = i2c_new_master_bus(&bus_cfg, &bus);
+#else
+    (void)bus_cfg;
+    owns_bus = false;
+#endif
     if (err == ESP_OK && i2c_master_probe(bus, SHT4X_ADDR, 100) != ESP_OK) {
         ESP_LOGW(TAG, "SHT4x not responding at boot; will retry reads");
     }

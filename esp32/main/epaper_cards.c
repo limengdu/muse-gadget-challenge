@@ -15,6 +15,7 @@
  */
 
 #include "epaper_cards.h"
+#include "card_mask.h"
 
 #include <limits.h>
 #include <string.h>
@@ -144,13 +145,16 @@ int epaper_cards_measure(const char *text, int size) {
 }
 
 static void mask_draw(epaper_cards_canvas_t *c, int64_t x, int64_t y, int width, int height,
-                       const uint8_t *bits, card_color_t color) {
-    int stride = (width + 7) / 8;
+                       const uint8_t *bits, uint16_t encoded_bytes, card_color_t color) {
+    card_mask_decoder_t decoder;
+    if (!card_mask_begin(&decoder, bits, encoded_bytes, width, height)) return;
     for (int row = 0; row < height; row++) {
+        const uint8_t *pixels = card_mask_next(&decoder);
+        if (!pixels) return;
         if (y + row < 0 || y + row >= c->height) continue;
         for (int col = 0; col < width; col++) {
             if (x + col < 0 || x + col >= c->width) continue;
-            if (bits[row * stride + col / 8] & (0x80 >> (col % 8))) {
+            if (pixels[col / 8] & (0x80 >> (col % 8))) {
                 epaper_cards_pixel(c, (int)(x + col), (int)(y + row), color);
             }
         }
@@ -162,7 +166,7 @@ static void draw_span(epaper_cards_canvas_t *c, int64_t x, int64_t y, const char
     while (p < end && x < c->width) {
         const card_glyph_t *g = card_font_glyph(font, next_char(&p, end));
         mask_draw(c, x + g->x_offset, y + font->ascent + g->y_offset,
-                  g->width, g->height, font->bitmap + g->offset, color);
+                  g->width, g->height, font->bitmap + g->offset, g->encoded_bytes, color);
         x += g->advance;
     }
 }
@@ -244,7 +248,31 @@ bool epaper_cards_icon(epaper_cards_canvas_t *c, int x, int y, const char *name,
     const card_icon_t *icon = card_icon_find(name, size);
     if (!icon) return false;
     mask_draw(c, (int64_t)x + icon->x_offset, (int64_t)y + icon->y_offset,
-              icon->width, icon->height, icon->bitmap, color);
+              icon->width, icon->height, icon->bitmap, icon->encoded_bytes, color);
+    return true;
+}
+
+// Resamples a decoded icon row by row without a full-size temporary bitmap.
+// 逐行解码并缩放图标，使用行缓冲区保存临时图案。
+bool epaper_cards_icon_scaled(epaper_cards_canvas_t *c, int x, int y, const char *name,
+                              int source_size, int size, card_color_t color) {
+    const card_icon_t *icon = card_icon_find(name, source_size);
+    card_mask_decoder_t decoder;
+    if (!icon || size <= 0 || size > 800 || !card_mask_begin(&decoder, icon->bitmap,
+        icon->encoded_bytes, icon->width, icon->height)) return false;
+    int decoded = -1;
+    const uint8_t *row = NULL;
+    for (int dy = 0; dy < size; dy++) {
+        int sy = dy * source_size / size - icon->y_offset;
+        if (sy < 0 || sy >= icon->height) continue;
+        while (decoded < sy) { row = card_mask_next(&decoder); decoded++; if (!row) return false; }
+        for (int dx = 0; dx < size; dx++) {
+            int sx = dx * source_size / size - icon->x_offset;
+            int64_t px = (int64_t)x + dx, py = (int64_t)y + dy;
+            if (sx >= 0 && sx < icon->width && px >= 0 && px < c->width && py >= 0 && py < c->height
+                && (row[sx / 8] & (0x80 >> (sx % 8)))) epaper_cards_pixel(c, (int)px, (int)py, color);
+        }
+    }
     return true;
 }
 

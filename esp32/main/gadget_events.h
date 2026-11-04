@@ -35,6 +35,9 @@ bool gadget_events_init(void);
 // Copies source, summary and data into a bounded RAM queue without waiting.
 // 将来源、摘要和数据复制到有界内存队列，调用时不等待。
 bool gadget_events_post(const char *source, const char *summary, const cJSON *data);
+// Queues an event and returns its exact sequence when accepted.
+// 事件入队成功时返回该事件的准确序号。
+bool gadget_events_post_seq(const char *source, const char *summary, const cJSON *data, uint64_t *seq);
 // Returns an owned command result; since is a nonnegative integer sequence.
 // 返回由调用方持有的命令结果；since 为非负整数序号。
 cJSON *gadget_events_poll(uint64_t since);

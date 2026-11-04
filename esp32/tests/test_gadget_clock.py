@@ -30,7 +30,7 @@ class GadgetClock(unittest.TestCase):
             (out / "esp_netif_sntp.h").write_text("""#pragma once
 typedef int esp_err_t;
 #define ESP_OK 0
-typedef struct {bool start, wait_for_sync; const char *servers[1];} esp_sntp_config_t;
+typedef struct {bool start, wait_for_sync; void (*sync_cb)(struct timeval *); const char *servers[1];} esp_sntp_config_t;
 #define ESP_NETIF_SNTP_DEFAULT_CONFIG(server) {.start=true,.wait_for_sync=true,.servers={server}}
 esp_err_t esp_netif_sntp_init(const esp_sntp_config_t *);
 """)
