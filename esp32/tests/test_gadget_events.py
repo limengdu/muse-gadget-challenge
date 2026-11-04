@@ -44,7 +44,48 @@ class GadgetEvents(unittest.TestCase):
             self.assertTrue(any(row["len"] > 12288 and row["keys"] == [] for row in rows))
             self.assertTrue(any(row["ids"].get("payload.message_id") == "message-id" for row in rows))
             for row in rows:
-                self.assertEqual(set(row), {"req", "status", "len", "keys", "type", "event", "event_name", "payload_keys", "ids"})
+                self.assertEqual(set(row) - {"dropped"}, {"req", "status", "len", "keys", "type", "event", "event_name", "payload_keys", "ids", "seq", "activity_code", "payload_status"})
+                self.assertTrue(row["seq"] is None or isinstance(row["seq"], (int, float)))
+                for key in ("activity_code", "payload_status"):
+                    self.assertTrue(row[key] is None or isinstance(row[key], str))
+            sequenced = [row for row in rows if row["seq"] == 77]
+            self.assertEqual(len(sequenced), 2)
+            self.assertNotIn("dropped", sequenced[0])
+            self.assertEqual(sequenced[1]["dropped"], "seq")
+            self.assertEqual(sequenced[0]["activity_code"], "thinking")
+            self.assertEqual(sequenced[0]["payload_status"], "running")
+            self.assertTrue(any(row["event"] == "task.status" and row["payload_status"] == "running" for row in rows))
+            diagnostic = next(row for row in rows if row["event"] == "diag.event")
+            self.assertIsNone(diagnostic["seq"])
+            self.assertIsNone(diagnostic["activity_code"])
+            self.assertIsNone(diagnostic["payload_status"])
+            frames = [json.loads(line[len("@event.frame "):]) for line in result.stdout.splitlines() if line.startswith("@event.frame ")]
+            self.assertEqual(len(frames), 5)
+            self.assertIn({"req": "sub", "bytes": 7, "newlines": 1, "pending": 0, "ws_only": True}, frames)
+            self.assertIn({"req": "sub", "bytes": 1, "newlines": 0, "pending": 1, "ws_only": False}, frames)
+            for frame in frames:
+                self.assertEqual(set(frame), {"req", "bytes", "newlines", "pending", "ws_only"})
+                self.assertEqual(frame["req"], "sub")
+                self.assertIsInstance(frame["ws_only"], bool)
+            states = [json.loads(line[len("@event.state "):]) for line in result.stdout.splitlines() if line.startswith("@event.state ")]
+            self.assertEqual([state["reason"] for state in states], ["settled", "timeout", "failed", "failed"])
+            settled = states[0]
+            self.assertTrue(settled["note_id_set"] and settled["complete"] and settled["agent_busy"])
+            self.assertEqual(settled["echo_row"], 1)
+            self.assertEqual(settled["row"], 5)
+            self.assertEqual(settled["count"], 1)
+            self.assertEqual(settled["quiet_ms"], 20000)
+            self.assertEqual(settled["content_age_ms"], 20000)
+            self.assertEqual(settled["candidates"], [{"id_tail": "msg-turn", "started": 2, "done": True, "text_len": 10}])
+            self.assertTrue(states[1]["note_id_set"])
+            self.assertFalse(states[1]["complete"])
+            for state in states:
+                self.assertEqual(set(state), {"reason", "note_id_set", "echo_row", "row", "server_seq", "count", "candidates", "complete", "agent_busy", "pending", "overflow", "quiet_ms", "content_age_ms"})
+                self.assertEqual(state["pending"], 0)
+                self.assertFalse(state["overflow"])
+                for candidate in state["candidates"]:
+                    self.assertEqual(set(candidate), {"id_tail", "started", "done", "text_len"})
+                    self.assertLessEqual(len(candidate["id_tail"]), 8)
             for line in result.stdout.splitlines():
                 if line.startswith("@event.request "): json.loads(line[len("@event.request "):])
 

@@ -183,4 +183,15 @@ RTC backup and both white keys also await device checks.
 `link.care` logs report reminder IDs/status changes, key action results, event
 types/sequences and redraw requests with timestamps. Link console diagnostics can
 be enabled with `>event.debug=1` and ended with `>event.debug=0`; they report
-request/row metadata, remain in RAM and start disabled after boot.
+request/row metadata, remain in RAM and start disabled after boot. Subscribe frame
+summaries (`@event.frame`) aggregate byte/newline counts, pending bytes and whether
+the pending row contains only whitespace, at most once per second. Row diagnostics
+include the root `seq`, status-event `activity_code` and `payload_status` (the
+payload's `status` string); the existing `status` field is the HTTP status.
+`dropped: "seq"` marks a repeated sequence among the most recent 64 distinct values.
+An unseen sequence is accepted in any arrival order. Each turn ends with one
+`@event.state` summary of matching flags, candidate ID tails/lengths and timing.
+A reply settles after all its messages finish and matching or sessionless event
+rows remain quiet for three seconds. A busy agent holds it until at most 20 seconds
+after the last content row; later content restarts that hold. Whitespace keepalives
+preserve quiet time. An unfinished turn retains its 90-second timeout.

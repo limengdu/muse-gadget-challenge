@@ -41,8 +41,10 @@
 #define ROW_MAX 12288
 #define REPLY_TIMEOUT_US (90LL * 1000000)
 #define REPLY_SETTLE_US (3LL * 1000000)
+#define BUSY_HOLD_US (20LL * 1000000)
 #define REPLY_MESSAGES 8
 #define REPLY_ECHOES 4
+#define REPLY_RECENT_SEQS 64
 #define MAX_SEQ 9007199254740991ULL
 
 typedef struct {
@@ -262,6 +264,8 @@ typedef struct {
     int status;
     bool done, overflow;
     size_t length, debug_length;
+    size_t frame_bytes, frame_newlines;
+    int64_t frame_next_at;
     char row[ROW_MAX + 1];
 } event_rx_t;
 static event_rx_t *s_rx;
@@ -277,17 +281,43 @@ typedef struct {
 typedef struct {
     event_candidate_t messages[REPLY_MESSAGES];
     event_echo_t echoes[REPLY_ECHOES];
-    unsigned count, echo_next;
+    unsigned count, echo_next, seq_next;
     uint64_t row, echo_row, server_seq;
+    uint64_t recent_seqs[REPLY_RECENT_SEQS];
     char note_id[96], session[96], reply[GADGET_EVENTS_REPLY_BYTES];
-    int64_t activity_at;
-    bool complete, overflow;
+    int64_t activity_at, content_at;
+    bool complete, overflow, agent_busy;
 } event_reply_t;
 static event_reply_t *s_stream;
 
 static const char *field(const cJSON *object, const char *key) {
     const char *s = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(object, key));
     return s ? s : "";
+}
+
+static const cJSON *row_payload(const cJSON *root) {
+    const cJSON *payload = cJSON_GetObjectItemCaseSensitive(root, "payload");
+    return cJSON_IsObject(payload) ? payload : root;
+}
+
+static const char *event_kind(const cJSON *root, const cJSON *payload) {
+    const char *kind = field(root, "event_name");
+    if (!kind[0]) kind = field(root, "event");
+    if (!kind[0]) kind = field(payload, "event_name");
+    if (!kind[0]) kind = field(payload, "event");
+    return kind;
+}
+
+static void debug_json(const char *prefix, cJSON *json) {
+    char *line = cJSON_PrintUnformatted(json);
+    if (line) {
+        flockfile(stdout);
+        printf("%s %s\n", prefix, line);
+        fflush(stdout);
+        funlockfile(stdout);
+    }
+    cJSON_free(line);
+    cJSON_Delete(json);
 }
 
 // Collects object keys and string IDs, with paths for nested IDs.
@@ -311,13 +341,24 @@ static void debug_fields(const cJSON *object, cJSON *keys, cJSON *ids, const cha
 
 // Prints row metadata; discriminator values are strings or null.
 // 输出行元数据；事件分类字段的值为字符串或空值。
-static void debug_row(unsigned slot, int status, size_t length, const cJSON *root) {
+static void debug_row(unsigned slot, int status, size_t length, const cJSON *root, bool dropped) {
     if (!atomic_load(&s_debug)) return;
     cJSON *json = cJSON_CreateObject(), *keys = cJSON_CreateArray();
     cJSON *payload_keys = cJSON_CreateArray(), *ids = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "req", slot ? "sub" : "post");
     cJSON_AddNumberToObject(json, "status", status);
     cJSON_AddNumberToObject(json, "len", (double)length);
+    const cJSON *seq = cJSON_GetObjectItemCaseSensitive(root, "seq");
+    cJSON_AddItemToObject(json, "seq", cJSON_IsNumber(seq) && isfinite(seq->valuedouble)
+                         ? cJSON_CreateNumber(seq->valuedouble) : cJSON_CreateNull());
+    const cJSON *payload = row_payload(root);
+    const char *kind = event_kind(root, payload);
+    bool is_status = !strcmp(kind, "agent.status") || !strcmp(kind, "task.status");
+    const char *code = is_status ? cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "activity_code")) : NULL;
+    const char *state = is_status ? cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "status")) : NULL;
+    cJSON_AddItemToObject(json, "activity_code", code ? cJSON_CreateString(code) : cJSON_CreateNull());
+    cJSON_AddItemToObject(json, "payload_status", state ? cJSON_CreateString(state) : cJSON_CreateNull());
+    if (dropped) cJSON_AddStringToObject(json, "dropped", "seq");
     cJSON_AddItemToObject(json, "keys", keys);
     const char *names[] = {"type", "event", "event_name"};
     for (unsigned i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
@@ -329,15 +370,7 @@ static void debug_row(unsigned slot, int status, size_t length, const cJSON *roo
     debug_fields(root, keys, ids, "");
     debug_fields(cJSON_GetObjectItemCaseSensitive(root, "result"), NULL, ids, "result.");
     debug_fields(cJSON_GetObjectItemCaseSensitive(root, "payload"), payload_keys, ids, "payload.");
-    char *line = cJSON_PrintUnformatted(json);
-    if (line) {
-        flockfile(stdout);
-        printf("@event.row %s\n", line);
-        fflush(stdout);
-        funlockfile(stdout);
-    }
-    cJSON_free(line);
-    cJSON_Delete(json);
+    debug_json("@event.row", json);
 }
 
 static void debug_request(unsigned slot, int status, const char *phase) {
@@ -347,6 +380,73 @@ static void debug_request(unsigned slot, int status, const char *phase) {
            slot ? "sub" : "post", status, phase);
     fflush(stdout);
     funlockfile(stdout);
+}
+
+// Prints the terminal matcher state and candidate identifiers, lengths and flags.
+// 输出收尾时的匹配状态、候选消息编号、长度和标志。
+static void debug_state(const char *reason) {
+    if (!atomic_load(&s_debug)) return;
+    cJSON *json = cJSON_CreateObject(), *candidates = cJSON_CreateArray();
+    cJSON_AddStringToObject(json, "reason", reason);
+    cJSON_AddBoolToObject(json, "note_id_set", s_stream->note_id[0] != 0);
+    cJSON_AddNumberToObject(json, "echo_row", (double)s_stream->echo_row);
+    cJSON_AddNumberToObject(json, "row", (double)s_stream->row);
+    cJSON_AddNumberToObject(json, "server_seq", (double)s_stream->server_seq);
+    cJSON_AddNumberToObject(json, "count", s_stream->count);
+    cJSON_AddItemToObject(json, "candidates", candidates);
+    for (unsigned i = 0; i < s_stream->count; i++) {
+        const event_candidate_t *message = &s_stream->messages[i];
+        cJSON *item = cJSON_CreateObject();
+        size_t n = strlen(message->id);
+        cJSON_AddStringToObject(item, "id_tail", message->id + (n > 8 ? n - 8 : 0));
+        cJSON_AddNumberToObject(item, "started", (double)message->started);
+        cJSON_AddBoolToObject(item, "done", message->done);
+        cJSON_AddNumberToObject(item, "text_len", strlen(message->text));
+        cJSON_AddItemToArray(candidates, item);
+    }
+    cJSON_AddBoolToObject(json, "complete", s_stream->complete);
+    cJSON_AddBoolToObject(json, "agent_busy", s_stream->agent_busy);
+    cJSON_AddNumberToObject(json, "pending", s_rx[1].length);
+    cJSON_AddBoolToObject(json, "overflow", s_rx[1].overflow || s_stream->overflow);
+    int64_t now = esp_timer_get_time();
+    cJSON_AddNumberToObject(json, "quiet_ms", (now - s_stream->activity_at) / 1000);
+    cJSON_AddNumberToObject(json, "content_age_ms", (now - s_stream->content_at) / 1000);
+    debug_json("@event.state", json);
+}
+
+static bool row_space(uint8_t byte) {
+    return byte == ' ' || byte == '\r' || byte == '\t';
+}
+
+static bool pending_content(const event_rx_t *rx) {
+    for (size_t i = 0; i < rx->length; i++) {
+        if (!row_space((uint8_t)rx->row[i])) return true;
+    }
+    return false;
+}
+
+// Aggregates subscribe frame counts at most once per second.
+// 汇总订阅数据帧计数，每秒最多输出一次。
+static void debug_frame(size_t bytes, size_t newlines) {
+    event_rx_t *rx = &s_rx[1];
+    if (!atomic_load(&s_debug)) {
+        rx->frame_bytes = rx->frame_newlines = 0;
+        rx->frame_next_at = 0;
+        return;
+    }
+    if (!bytes) return;
+    rx->frame_bytes += bytes;
+    rx->frame_newlines += newlines;
+    int64_t now = esp_timer_get_time();
+    if (now < rx->frame_next_at) return;
+    flockfile(stdout);
+    printf("@event.frame {\"req\":\"sub\",\"bytes\":%zu,\"newlines\":%zu,\"pending\":%zu,\"ws_only\":%s}\n",
+           rx->frame_bytes, rx->frame_newlines, rx->length,
+           !rx->overflow && !pending_content(rx) ? "true" : "false");
+    fflush(stdout);
+    funlockfile(stdout);
+    rx->frame_bytes = rx->frame_newlines = 0;
+    rx->frame_next_at = now + 1000000;
 }
 
 
@@ -381,17 +481,39 @@ static void collect_reply(void) {
     s_stream->complete = found && done;
 }
 
+// Settles quiet completed replies after idle or a bounded busy hold since content.
+// 已完成的回复在静默后收尾，忙碌等待以最后内容行计时并设有上限。
 static bool reply_settled(void) {
-    return s_stream->complete && !s_rx[1].length && !s_rx[1].overflow
-        && esp_timer_get_time() - s_stream->activity_at >= REPLY_SETTLE_US;
+    int64_t now = esp_timer_get_time();
+    return s_stream->complete
+        && (!s_stream->agent_busy || now - s_stream->content_at >= BUSY_HOLD_US)
+        && !pending_content(&s_rx[1]) && !s_rx[1].overflow
+        && now - s_stream->activity_at >= REPLY_SETTLE_US;
+}
+
+// Remembers recent sequence values and accepts unseen values in any arrival order.
+// 记录近期序号，并按到达顺序接收尚未出现过的序号。
+static bool duplicate_seq(const cJSON *root) {
+    const cJSON *seq = cJSON_GetObjectItemCaseSensitive(root, "seq");
+    if (!cJSON_IsNumber(seq) || !isfinite(seq->valuedouble) || seq->valuedouble <= 0
+        || seq->valuedouble > MAX_SEQ || floor(seq->valuedouble) != seq->valuedouble) return false;
+    uint64_t value = (uint64_t)seq->valuedouble;
+    for (unsigned i = 0; i < REPLY_RECENT_SEQS; i++) {
+        if (s_stream->recent_seqs[i] == value) return true;
+    }
+    s_stream->recent_seqs[s_stream->seq_next++ % REPLY_RECENT_SEQS] = value;
+    if (value > s_stream->server_seq) s_stream->server_seq = value;
+    return false;
 }
 
 // Records starts independently of acknowledgement arrival, preserving echo ordering.
 // 独立记录消息开始顺序，以便在确认稍晚到达时保留回声边界。
 static void parse_row(const char *row, size_t length, unsigned slot) {
     cJSON *root = cJSON_ParseWithLength(row, length);
-    debug_row(slot, s_rx[slot].status, length - 1, root);
-    if (!root || s_rx[slot].status != 200) { cJSON_Delete(root); return; }
+    bool dropped = slot && s_rx[slot].status == 200
+        && !strcmp(field(root, "type"), "event") && duplicate_seq(root);
+    debug_row(slot, s_rx[slot].status, length - 1, root, dropped);
+    if (!root || s_rx[slot].status != 200 || dropped) { cJSON_Delete(root); return; }
     if (!slot) {
         cJSON *ack = cJSON_GetObjectItemCaseSensitive(root, "result");
         if (!cJSON_IsObject(ack)) ack = root;
@@ -405,28 +527,26 @@ static void parse_row(const char *row, size_t length, unsigned slot) {
             }
             s_stream->count = kept;
             collect_reply();
-            s_stream->activity_at = esp_timer_get_time();
         }
         cJSON_Delete(root);
         return;
     }
     if (strcmp(field(root, "type"), "event")) { cJSON_Delete(root); return; }
-    cJSON *seq = cJSON_GetObjectItemCaseSensitive(root, "seq");
-    if (cJSON_IsNumber(seq) && seq->valuedouble > 0 && seq->valuedouble <= MAX_SEQ) {
-        uint64_t value = (uint64_t)seq->valuedouble;
-        if (value <= s_stream->server_seq) { cJSON_Delete(root); return; }
-        s_stream->server_seq = value;
-    }
     uint64_t order = ++s_stream->row;
-    cJSON *payload = cJSON_GetObjectItemCaseSensitive(root, "payload");
-    if (!cJSON_IsObject(payload)) payload = root;
-    const char *kind = field(root, "event_name");
-    if (!kind[0]) kind = field(root, "event");
-    if (!kind[0]) kind = field(payload, "event_name");
-    if (!kind[0]) kind = field(payload, "event");
+    const cJSON *payload = row_payload(root);
+    const char *kind = event_kind(root, payload);
     const char *session = field(payload, "session_id"), *id = field(payload, "message_id");
     if (!id[0]) id = field(payload, "id");
-    if (s_stream->echo_row && (!session[0] || !strcmp(session, s_stream->session))) s_stream->activity_at = esp_timer_get_time();
+    // Parsed events set quiet time; the acknowledgement selects the session to follow.
+    // 已解析事件确定静默计时，发送确认选定后续跟踪的会话。
+    bool ours = !session[0] || !strcmp(session, s_stream->session);
+    if (ours || !s_stream->session[0]) s_stream->activity_at = esp_timer_get_time();
+    if (ours && (!strcmp(kind, "agent.status") || !strcmp(kind, "task.status"))) {
+        const char *code = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "activity_code"));
+        const char *status = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(payload, "status"));
+        if (code) s_stream->agent_busy = code[0] && strcmp(code, "online") && strcmp(code, "idle");
+        else if (status) s_stream->agent_busy = status[0] && strcmp(status, "completed") && strcmp(status, "failed");
+    }
     if (!strcmp(kind, "message.user") && id[0] && session[0]) {
         if (!s_stream->echo_row && strlen(id) < 96 && strlen(session) < 96) {
             event_echo_t *echo = &s_stream->echoes[s_stream->echo_next++ % REPLY_ECHOES];
@@ -453,6 +573,7 @@ static void parse_row(const char *row, size_t length, unsigned slot) {
                 } else if (s_stream->echo_row && order > s_stream->echo_row) s_stream->overflow = true;
             }
             if (i < s_stream->count) {
+                s_stream->content_at = esp_timer_get_time();
                 event_candidate_t *message = &s_stream->messages[i];
                 const char *text = field(payload, "display_text");
                 if (!text[0]) text = field(payload, "content");
@@ -466,8 +587,8 @@ static void parse_row(const char *row, size_t length, unsigned slot) {
     cJSON_Delete(root);
 }
 
-// Splits bounded NDJSON rows across frames and drains oversized rows to newline.
-// 跨帧拼接有界 NDJSON 行，并将超长行排空至换行符。
+// Skips leading whitespace, joins bounded rows across frames and drains oversized rows.
+// 跳过行首空白、跨帧拼接有界数据行，并排空超长行。
 static void on_frame(void *ctx, int status, const uint8_t *data, size_t len, bool end) {
     uintptr_t token = (uintptr_t)ctx;
     unsigned slot = token & 1;
@@ -477,17 +598,19 @@ static void on_frame(void *ctx, int status, const uint8_t *data, size_t len, boo
             s_rx[slot].status = status;
             debug_request(slot, status, "status");
         }
-        if (slot && len && s_stream->echo_row) s_stream->activity_at = esp_timer_get_time();
+        size_t newlines = 0;
         if (s_rx[slot].status == 200 || atomic_load(&s_debug)) {
             for (size_t i = 0; i < len; i++) {
                 if (data[i] == '\n') {
+                    newlines++;
                     if (!s_rx[slot].overflow && s_rx[slot].length) {
                         s_rx[slot].row[s_rx[slot].length] = 0;
                         parse_row(s_rx[slot].row, s_rx[slot].length + 1, slot);
-                    } else debug_row(slot, s_rx[slot].status, s_rx[slot].debug_length, NULL);
+                    } else if (s_rx[slot].overflow) debug_row(slot, s_rx[slot].status, s_rx[slot].debug_length, NULL, false);
                     s_rx[slot].length = s_rx[slot].debug_length = 0;
                     s_rx[slot].overflow = false;
                 } else {
+                    if (!s_rx[slot].length && !s_rx[slot].overflow && row_space(data[i])) continue;
                     s_rx[slot].debug_length++;
                     if (s_rx[slot].length < ROW_MAX && !s_rx[slot].overflow) s_rx[slot].row[s_rx[slot].length++] = (char)data[i];
                     else s_rx[slot].overflow = true;
@@ -497,10 +620,11 @@ static void on_frame(void *ctx, int status, const uint8_t *data, size_t len, boo
                 if (!s_rx[slot].overflow && s_rx[slot].length) {
                     s_rx[slot].row[s_rx[slot].length] = 0;
                     parse_row(s_rx[slot].row, s_rx[slot].length + 1, slot);
-                } else debug_row(slot, s_rx[slot].status, s_rx[slot].debug_length, NULL);
+                } else if (s_rx[slot].overflow) debug_row(slot, s_rx[slot].status, s_rx[slot].debug_length, NULL, false);
                 s_rx[slot].length = s_rx[slot].debug_length = 0;
             }
         }
+        if (slot) debug_frame(len, newlines);
         s_rx[slot].done = end || status < 0;
         if (s_rx[slot].done) debug_request(slot, s_rx[slot].status, "end");
     }
@@ -511,6 +635,8 @@ static int64_t open_request(unsigned slot, const char *path) {
     xSemaphoreTake(s_rx_lock, portMAX_DELAY);
     uintptr_t token = (uintptr_t)++s_rx[slot].generation << 1 | slot;
     s_rx[slot].length = s_rx[slot].debug_length = 0;
+    s_rx[slot].frame_bytes = s_rx[slot].frame_newlines = 0;
+    s_rx[slot].frame_next_at = 0;
     s_rx[slot].overflow = s_rx[slot].done = false;
     s_rx[slot].status = 0;
     xSemaphoreGive(s_rx_lock);
@@ -555,7 +681,13 @@ static bool send_event(event_t *event) {
         submitted = noise_ctrl_req_send(post, json + offset, n, offset + n == length, 1000);
     }
     cJSON_free(json);
-    if (!submitted) { close_requests(post, sub); return false; }
+    if (!submitted) {
+        xSemaphoreTake(s_rx_lock, portMAX_DELAY);
+        debug_state("failed");
+        xSemaphoreGive(s_rx_lock);
+        close_requests(post, sub);
+        return false;
+    }
     int64_t deadline = esp_timer_get_time() + REPLY_TIMEOUT_US;
     bool announced = false, replied = false;
     int status = 0;
@@ -568,6 +700,7 @@ static bool send_event(event_t *event) {
         bool settled = reply_settled();
         bool failed = (s_rx[0].done && !ack) || (s_rx[1].done && !replied);
         if (settled || failed || esp_timer_get_time() >= deadline) {
+            debug_state(settled ? "settled" : failed ? "failed" : "timeout");
             replied = settled;
             utf8_copy(reply, sizeof(reply), s_stream->reply, false);
             xSemaphoreGive(s_rx_lock);

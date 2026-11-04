@@ -31,6 +31,7 @@ void *heap_caps_calloc(size_t count, size_t size, int caps) {
 }
 #endif
 static bool connected = true, fail_lock, fail_open, no_reply;
+static bool keepalive_reply, busy_reply, reject_post, unfinished_reply;
 static unsigned opens, sends, cancels, delays, notifications;
 static bool run_worker;
 static jmp_buf worker_end;
@@ -64,6 +65,9 @@ void vTaskDelay(int ticks) {
     now += (int64_t)ticks * 1000;
     delays++;
     if (run_worker && !connected && delays >= 2) connected = true;
+    if (keepalive_reply && callbacks[1]) {
+        callbacks[1](contexts[1], 0, (const uint8_t *)" \r\t", 3, false);
+    }
 }
 bool noise_ctrl_is_connected(void) { return connected; }
 int64_t noise_ctrl_req_open(const char *verb, const char *path,
@@ -95,12 +99,18 @@ bool noise_ctrl_req_send(int64_t id, const void *data, size_t len, bool end, int
     assert(body && !strcmp(field(body, "output_modality"), "text"));
     utf8_copy(sent_message, sizeof(sent_message), field(body, "message"), false);
     cJSON_Delete(body);
+    if (reject_post) {
+        const char *error="{\"message\":\"PRIVATE_REJECTED\"}\n";
+        callbacks[0](contexts[0],503,(const uint8_t *)error,strlen(error),true);
+        return true;
+    }
     frame(0, "{\"result\":{\"message_id\":\"n1\",\"reply_to_message_id\":\"n1\",\"session_id\":\"care-session\"}}", true);
     if (!no_reply) {
         frame(1, "{\"type\":\"event\",\"event\":\"message.user\",\"payload\":{\"message_id\":\"n1\",\"session_id\":\"care-session\"}}\n", false);
         frame(1, "{\"type\":\"event\",\"event\":\"delta.message_start\",\"payload\":{\"message_id\":\"assistant-msg-turn\",\"reply_to_message_id\":\"\",\"session_id\":\"care-session\"}}\n", false);
         frame(1, "{\"type\":\"event\",\"event\":\"delta.text_append\",\"payload\":{\"message_id\":\"assistant-msg-turn\",\"parent_message_id\":\"assistant-msg-turn\",\"text\":\"All ready!\",\"session_id\":\"care-session\"}}\n", false);
-        frame(1, "{\"type\":\"event\",\"event\":\"delta.message_done\",\"payload\":{\"message_id\":\"assistant-msg-turn\",\"session_id\":\"care-session\"}}\n", false);
+        if (!unfinished_reply) frame(1, "{\"type\":\"event\",\"event\":\"delta.message_done\",\"payload\":{\"message_id\":\"assistant-msg-turn\",\"session_id\":\"care-session\"}}\n", false);
+        if (busy_reply) frame(1, "{\"type\":\"event\",\"event\":\"agent.status\",\"payload\":{\"session_id\":\"care-session\",\"activity_code\":\"thinking\"}}\n", false);
     }
     return true;
 }
@@ -114,6 +124,7 @@ static void reset(void) {
     s_last_seq = s_dropped = 0;
     connected = true;
     no_reply = fail_open = false;
+    keepalive_reply = busy_reply = reject_post = unfinished_reply = false;
     opens = sends = cancels = delays = 0;
     s_reply[0] = 0;
     if (s_stream) memset(s_stream,0,sizeof(*s_stream));
@@ -198,18 +209,49 @@ static void queue_tests(void) {
     reset();
 }
 
-static void event_row(const char *kind,const char *id,const char *session,const char *text) {
+static void sequenced_row(const char *kind,const char *id,const char *session,const char *text,uint64_t seq) {
     cJSON *row=cJSON_CreateObject(),*p=cJSON_CreateObject();
     cJSON_AddStringToObject(row,"type","event");cJSON_AddStringToObject(row,"event",kind);cJSON_AddItemToObject(row,"payload",p);
+    if(seq)cJSON_AddNumberToObject(row,"seq",(double)seq);
     cJSON_AddStringToObject(p,"message_id",id);cJSON_AddStringToObject(p,"session_id",session);
     cJSON_AddStringToObject(p,"reply_to_message_id","");cJSON_AddStringToObject(p,"parent_message_id",id);
     if(text)cJSON_AddStringToObject(p,!strcmp(kind,"message.assistant")?"display_text":"text",text);
     char *json=cJSON_PrintUnformatted(row);assert(json);frame(1,json,false);frame(1,"\n",false);
     cJSON_free(json);cJSON_Delete(row);
 }
+static void event_row(const char *kind,const char *id,const char *session,const char *text) {
+    sequenced_row(kind,id,session,text,0);
+}
 static void ack_row(void) {frame(0,"{\"message_id\":\"my-note\",\"reply_to_message_id\":\"my-note\",\"session_id\":\"care-session\"}",true);}
 static void begin_parse(void) {
     memset(s_stream,0,sizeof(*s_stream));open_request(1,"/chat/subscribe");open_request(0,"/chat/stream");
+}
+
+static void sequence_tests(void) {
+    begin_parse();ack_row();
+    frame(1,"{\"type\":\"event\",\"event\":\"agent.status\",\"seq\":1000,\"payload\":{\"session_id\":\"care-session\",\"activity_code\":\"idle\"}}\n",false);
+    sequenced_row("message.user","my-note","care-session",NULL,500);
+    sequenced_row("delta.message_start","a","care-session",NULL,10);
+    sequenced_row("delta.text_append","a","care-session","Ready",11);
+    sequenced_row("delta.message_done","a","care-session",NULL,12);
+    assert(s_stream->complete&&!strcmp(s_stream->reply,"Ready")&&s_stream->server_seq==1000);
+    uint64_t rows=s_stream->row;int64_t last=s_stream->activity_at,content=s_stream->content_at;
+    now+=2000000;
+    sequenced_row("delta.text_append","a","care-session","Ready",11);
+    sequenced_row("delta.message_done","a","care-session",NULL,12);
+    assert(s_stream->row==rows&&s_stream->activity_at==last&&s_stream->content_at==content);
+    assert(s_stream->complete&&!strcmp(s_stream->reply,"Ready"));
+    now+=1000000;assert(reply_settled());
+    sequenced_row("delta.message_start","b","care-session",NULL,1);assert(!s_stream->complete);
+    sequenced_row("delta.text_append","b","care-session","Again",2);
+    sequenced_row("delta.message_done","b","care-session",NULL,3);
+    assert(s_stream->complete&&!strcmp(s_stream->reply,"Ready\nAgain"));
+    for(unsigned i=0;i<REPLY_RECENT_SEQS;i++)sequenced_row("chat.seen","seen","care-session",NULL,2000+i);
+    rows=s_stream->row;sequenced_row("chat.seen","seen","care-session",NULL,1);
+    assert(s_stream->row==rows+1);close_requests(1,2);
+    begin_parse();ack_row();sequenced_row("message.user","my-note","care-session",NULL,500);
+    sequenced_row("message.assistant","a","care-session","New turn",10);
+    assert(s_stream->complete&&!strcmp(s_stream->reply,"New turn"));close_requests(1,2);
 }
 static void parser_tests(void) {
     begin_parse();ack_row();
@@ -281,13 +323,96 @@ static void recorded_stream_tests(void) {
         unsigned slot=!strcmp(field(entry,"req"),"sub");
         cJSON *oversized=cJSON_GetObjectItem(entry,"oversized");
         if(oversized){size_t n=(size_t)oversized->valueint;char *big=calloc(n+1,1);assert(big);memset(big,'x',n);frame(slot,big,false);frame(slot,"\n",false);free(big);continue;}
+        // Whitespace frames and incomplete JSON leave the parsed-event time unchanged.
+        // 空白帧及尚未完整的数据行保持已解析事件的计时不变。
+        int64_t previous=s_stream->activity_at;
+        if(slot){now+=50000;frame(slot," \r",false);frame(slot,"\t ",false);assert(!s_rx[1].length&&s_stream->activity_at==previous);}
         char *json=cJSON_PrintUnformatted(cJSON_GetObjectItem(entry,"row"));assert(json);size_t n=strlen(json),split=n/3;
         callbacks[slot](contexts[slot],200,(const uint8_t *)json,split,false);
+        assert(s_stream->activity_at==previous);
+        now+=25000;
         callbacks[slot](contexts[slot],0,(const uint8_t *)json+split,n-split,!slot);
+        assert(s_stream->activity_at==previous);
         if(slot)frame(slot,"\n",false);cJSON_free(json);
     }
     cJSON_Delete(fixture);assert(s_stream->complete&&!strcmp(s_stream->reply,"All ready!"));
-    now+=REPLY_SETTLE_US-1;assert(!reply_settled());now++;assert(reply_settled());close_requests(1,2);
+    int64_t last=s_stream->activity_at;
+    assert(last==now);
+    for(unsigned i=0;i<59;i++) {
+        now+=50000;frame(1," \t",false);frame(1,"\r",false);
+        assert(!reply_settled()&&!s_rx[1].length&&s_stream->activity_at==last);
+    }
+    now+=49999;frame(1," \r\t",false);assert(!reply_settled());
+    now++;frame(1,"\t",false);assert(reply_settled()&&now-last==REPLY_SETTLE_US);
+    event_row("chat.seen","foreign","other-session",NULL);
+    frame(1,"not-json\n{\"type\":\"ack\"}\n",false);
+    assert(s_stream->activity_at==last&&reply_settled());
+    // Pending whitespace is harmless even when already present in a receive row.
+    // 接收行中已经存在的待处理空白同样允许回复收尾。
+    memcpy(s_rx[1].row," \r\t",3);s_rx[1].length=3;assert(reply_settled());s_rx[1].length=0;
+    char *spaces=malloc(ROW_MAX+100);assert(spaces);memset(spaces,' ',ROW_MAX+99);spaces[ROW_MAX+99]=0;
+    frame(1,spaces,false);free(spaces);assert(!s_rx[1].overflow&&reply_settled());
+    frame(1," \t{",false);assert(!reply_settled()&&s_rx[1].length==1&&s_stream->activity_at==last);
+    now+=1000000;
+    frame(1,"\"type\":\"event\",\"event\":\"chat.seen\",\"payload\":{\"session_id\":\"fixture-id-2\"}}",false);
+    assert(!reply_settled()&&s_stream->activity_at==last);
+    frame(1,"\n\r\t ",false);assert(!reply_settled()&&s_stream->activity_at==now);
+    now+=REPLY_SETTLE_US;assert(reply_settled());close_requests(1,2);
+}
+
+static void status_row(const char *kind,const char *session,const char *key,const char *value) {
+    cJSON *row=cJSON_CreateObject(),*p=cJSON_CreateObject();
+    cJSON_AddStringToObject(row,"type","event");cJSON_AddStringToObject(row,"event",kind);cJSON_AddItemToObject(row,"payload",p);
+    if(session)cJSON_AddStringToObject(p,"session_id",session);
+    if(key)cJSON_AddStringToObject(p,key,value);
+    char *json=cJSON_PrintUnformatted(row);assert(json);frame(1,json,false);frame(1,"\n",false);
+    cJSON_free(json);cJSON_Delete(row);
+}
+
+static void busy_tests(void) {
+    begin_parse();ack_row();event_row("message.user","my-note","care-session",NULL);
+    event_row("message.assistant","ready","care-session","Ready");
+    const char *kinds[]={"agent.status","task.status"},*keys[]={"activity_code","status"};
+    const char *idle[][3]={{"idle","online",""},{"completed","failed",""}};
+    for(unsigned k=0;k<2;k++)for(unsigned i=0;i<3;i++) {
+        event_row("message.assistant","ready","care-session","Ready");
+        status_row(kinds[k],i%2?NULL:"care-session",keys[k],k?"running":"thinking");
+        assert(s_stream->agent_busy);
+        now+=REPLY_SETTLE_US+1000000;frame(1," \r\t",false);assert(!reply_settled());
+        int64_t last=s_stream->activity_at;
+        status_row(kinds[k],"foreign-session",keys[k],idle[k][i]);
+        assert(s_stream->agent_busy&&s_stream->activity_at==last);
+        status_row("chat.seen",NULL,NULL,NULL);
+        assert(s_stream->agent_busy&&s_stream->activity_at==now&&last<now);
+        now+=REPLY_SETTLE_US;assert(!reply_settled());
+        status_row(kinds[k],i%2?NULL:"care-session",keys[k],idle[k][i]);
+        assert(!s_stream->agent_busy&&!reply_settled());
+        now+=REPLY_SETTLE_US-1;assert(!reply_settled());now++;assert(reply_settled());
+        last=s_stream->activity_at;
+        status_row(kinds[k],"foreign-session",keys[k],"working");
+        assert(!s_stream->agent_busy&&s_stream->activity_at==last&&reply_settled());
+    }
+    close_requests(1,2);
+
+    begin_parse();ack_row();event_row("message.user","my-note","care-session",NULL);
+    event_row("message.assistant","ready","care-session","Ready");
+    int64_t content=s_stream->content_at;
+    status_row("agent.status","care-session","activity_code","thinking");
+    now+=BUSY_HOLD_US-REPLY_SETTLE_US;
+    status_row("task.status","care-session","status","running");
+    assert(s_stream->content_at==content&&!reply_settled());
+    now+=REPLY_SETTLE_US-1;assert(!reply_settled());now++;
+    assert(s_stream->agent_busy&&reply_settled()&&now-content==BUSY_HOLD_US);
+    // Later content restarts the busy bound; status activity only restarts quiet time.
+    // 后续内容重置忙碌等待上限；状态活动仅重置静默计时。
+    event_row("delta.message_start","later","care-session",NULL);assert(!reply_settled());
+    event_row("delta.text_append","later","care-session","More");
+    event_row("delta.message_done","later","care-session",NULL);
+    content=s_stream->content_at;
+    now+=BUSY_HOLD_US-1000000;
+    status_row("agent.status",NULL,"activity_code","thinking");
+    now+=1000000;assert(!reply_settled()&&now-content==BUSY_HOLD_US);
+    now+=REPLY_SETTLE_US-1000000;assert(reply_settled());close_requests(1,2);
 }
 
 static void worker_tests(void) {
@@ -302,6 +427,15 @@ static void worker_tests(void) {
     assert(gadget_events_post("test","no echo",NULL));
     event_t *unanswered=dequeue();no_reply=true;int64_t before=now;
     assert(send_event(unanswered)&&opens==2&&now-before>=REPLY_TIMEOUT_US);release(unanswered);reset();
+    assert(gadget_events_post("test","keepalive",NULL));
+    event_t *kept=dequeue();keepalive_reply=true;before=now;
+    assert(send_event(kept)&&now-before==REPLY_SETTLE_US&&!strcmp(s_reply,"All ready!"));release(kept);reset();
+    assert(gadget_events_post("test","busy hold",NULL));
+    event_t *busy=dequeue();busy_reply=true;before=now;
+    assert(send_event(busy)&&opens==2&&now-before==BUSY_HOLD_US&&s_stream->agent_busy&&!strcmp(s_reply,"All ready!"));release(busy);reset();
+    assert(gadget_events_post("test","unfinished busy timeout",NULL));
+    busy=dequeue();unfinished_reply=busy_reply=true;before=now;
+    assert(send_event(busy)&&opens==2&&now-before==REPLY_TIMEOUT_US&&!s_stream->complete);release(busy);reset();
     assert(gadget_events_console_command("event=Console ready"));
     event_t *event = dequeue(); assert(event);
     assert(send_event(event)); release(event);
@@ -314,16 +448,20 @@ static void debug_tests(void) {
     assert(!gadget_events_console_command("event.debug=2"));
     assert(gadget_events_console_command("event.debug=1"));
     int64_t sub = open_request(1, "/chat/subscribe"), post = open_request(0, "/chat/stream");
-    const char *row = "{\"type\":\"event\",\"event\":\"diag.event\",\"event_name\":\"diag.name\","
+    const char *row = "{\"type\":\"event\",\"event\":\"diag.event\",\"event_name\":\"diag.name\",\"seq\":\"PRIVATE_SEQ\","
         "\"id\":\"top-id\",\"request_id\":\"request-id\",\"rapid\":\"suffix-id\",\"numeric_id\":42,"
         "\"result\":{\"id\":\"result-id\",\"text\":\"PRIVATE_RESULT\"},"
         "\"payload\":{\"id\":\"payload-id\",\"message_id\":\"message-id\",\"reply_to_message_id\":\"parent-id\","
-        "\"number_id\":9,\"bool_id\":true,\"text\":\"PRIVATE_TEXT\",\"secret\":\"PRIVATE_SECRET\","
+        "\"number_id\":9,\"bool_id\":true,\"text\":\"PRIVATE_TEXT\",\"secret\":\"PRIVATE_SECRET\",\"activity_code\":\"PRIVATE_CODE\",\"status\":\"PRIVATE_STATUS\","
         "\"nested\":{\"id\":\"PRIVATE_NESTED\"}},\"message\":\"PRIVATE_MESSAGE\"}\n";
     size_t split = strlen(row) / 2;
     callbacks[1](contexts[1], 200, (const uint8_t *)row, split, false);
     callbacks[1](contexts[1], 0, (const uint8_t *)row + split, strlen(row) - split, false);
     frame(0, "{\"result\":{\"message_id\":\"post-id\",\"session_id\":\"debug-session\"},\"text\":\"PRIVATE_POST\"}", true);
+    row="{\"type\":\"event\",\"event\":\"agent.status\",\"seq\":77,\"payload\":{\"session_id\":\"debug-session\",\"activity_code\":\"thinking\",\"status\":\"running\",\"text\":\"PRIVATE_STATUS_TEXT\"}}\n";
+    frame(1,row,false);frame(1,row,false);
+    frame(1,"{\"type\":\"event\",\"event\":\"task.status\",\"seq\":78,\"payload\":{\"status\":\"running\"}}\n",false);
+    frame(1,"{\"type\":\"event\",\"event\":\"task.status\",\"seq\":79,\"payload\":{\"activity_code\":9,\"status\":{\"text\":\"PRIVATE_STATUS_OBJECT\"}}}\n",false);
     frame(1, "{\"type\":{\"text\":\"PRIVATE_TYPE\"},\"event\":[\"PRIVATE_EVENT\"],"
           "\"event_name\":42,\"payload\":{\"text\":\"PRIVATE_PAYLOAD\"}}\nnot-json\n", false);
     char *big = malloc(ROW_MAX + 10); assert(big);
@@ -338,16 +476,36 @@ static void debug_tests(void) {
     callbacks[0](contexts[0], 503, (const uint8_t *)row, strlen(row), true);
     assert(!strcmp(s_stream->note_id, "post-id"));
     close_requests(post, 0);
+    sub=open_request(1,"/chat/subscribe");
+    frame(1," \r",false);
+    assert(s_rx[1].frame_next_at==now+1000000&&!s_rx[1].frame_bytes);
+    frame(1,"\t ",false);frame(1,"\r\n ",false);
+    now+=999999;frame(1," ",false);
+    assert(s_rx[1].frame_bytes==6&&s_rx[1].frame_newlines==1);
+    now++;frame(1,"\t",false);
+    assert(!s_rx[1].frame_bytes&&!s_rx[1].frame_newlines&&s_rx[1].frame_next_at==now+1000000);
+    now+=1000000;frame(1,"{",false);assert(s_rx[1].length==1);
+    close_requests(0,sub);
+    for(unsigned i=0;i<4;i++) {
+        reset();assert(gadget_events_post("diag","PRIVATE_DIAGNOSTIC",NULL));
+        event_t *event=dequeue();assert(event);
+        busy_reply=i==0;no_reply=i==1;reject_post=i==2;fail_open=i==3;
+        assert(send_event(event)==(i!=3));release(event);
+    }
+    reset();
     assert(gadget_events_console_command("event.debug=0"));
     post = open_request(0, "/chat/stream");
     frame(0, "{\"id\":\"PRIVATE_DISABLED\"}\n", true);
     close_requests(post, 0);
+    sub=open_request(1,"/chat/subscribe");frame(1," \r\t",false);close_requests(0,sub);
+    reset();assert(gadget_events_post("diag","PRIVATE_DISABLED_EVENT",NULL));
+    event_t *event=dequeue();assert(send_event(event));release(event);reset();
     assert(!atomic_load(&s_debug));
 }
 
 
 int main(void) {
-    queue_tests(); parser_tests(); recorded_stream_tests(); worker_tests(); debug_tests(); reset();
+    queue_tests(); parser_tests(); sequence_tests(); recorded_stream_tests(); busy_tests(); worker_tests(); debug_tests(); reset();
     puts("ok");
     return 0;
 }

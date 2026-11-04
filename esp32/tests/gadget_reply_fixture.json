@@ -26,7 +26,7 @@
           "is_thread": false,
           "session_id": "fixture-id-2"
         },
-        "seq": 2,
+        "seq": 1000,
         "ts_ms": 1730678400100,
         "type": "event"
       }
@@ -269,12 +269,84 @@
           "resources": null,
           "seq": null,
           "session_id": "fixture-id-2",
-          "text": "All ready!",
+          "text": "All ",
           "transcript_surface": null,
           "widgets": null
         },
         "seq": 16,
         "ts_ms": 1730678401500,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "rea",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 17,
+        "ts_ms": 1730678401600,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "dy",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 18,
+        "ts_ms": 1730678401700,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "delta.text_append",
+        "payload": {
+          "is_thread": false,
+          "message_id": "fixture-id-5",
+          "message_seq": null,
+          "parent_agent_id": "fixture-id-1",
+          "parent_message_id": "fixture-id-5",
+          "presentations": null,
+          "reply_to_message_id": "",
+          "resources": null,
+          "seq": null,
+          "session_id": "fixture-id-2",
+          "text": "!",
+          "transcript_surface": null,
+          "widgets": null
+        },
+        "seq": 19,
+        "ts_ms": 1730678401800,
         "type": "event"
       }
     },
@@ -290,8 +362,8 @@
           "message_id": "fixture-id-4",
           "session_id": "fixture-id-2"
         },
-        "seq": 17,
-        "ts_ms": 1730678401600,
+        "seq": 20,
+        "ts_ms": 1730678401900,
         "type": "event"
       }
     },
@@ -306,8 +378,8 @@
           "is_thread": false,
           "session_id": "fixture-id-2"
         },
-        "seq": 18,
-        "ts_ms": 1730678401700,
+        "seq": 21,
+        "ts_ms": 1730678402000,
         "type": "event"
       }
     },
@@ -333,8 +405,8 @@
           "transcript_surface": null,
           "widgets": null
         },
-        "seq": 19,
-        "ts_ms": 1730678401800,
+        "seq": 22,
+        "ts_ms": 1730678402100,
         "type": "event"
       }
     },
@@ -351,8 +423,21 @@
           "status": "completed",
           "task_id": "fixture-id-1"
         },
-        "seq": 20,
-        "ts_ms": 1730678401900,
+        "seq": 23,
+        "ts_ms": 1730678402200,
+        "type": "event"
+      }
+    },
+    {
+      "req": "sub",
+      "row": {
+        "event": "chat.seen",
+        "payload": {
+          "message_id": "fixture-id-5",
+          "session_id": "fixture-id-2"
+        },
+        "seq": 24,
+        "ts_ms": 1730678402300,
         "type": "event"
       }
     }
