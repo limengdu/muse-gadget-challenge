@@ -1,0 +1,254 @@
+{
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Door Sign puts an owner's availability and up to three visitor replies on a small display outside a study. Muse updates the sign from chat; family members can tap a reply or hold USR1 to leave a voice note for the owner.",
+        "id": "p1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Explore the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/door-sign/projects/door-sign\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source</a>, <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/door-sign/projects/door-sign/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">Muse skill</a> and <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/door-sign/projects/door-sign/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">verification record</a>. The project is licensed under Apache-2.0; hardware checks currently cover one XIAO 1.47-inch unit.",
+        "id": "p2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Prepare your device and accounts",
+        "expanded": true,
+        "id": "s1",
+        "indent": 0,
+        "title": "Prepare your device and accounts",
+        "type": "step"
+      },
+      {
+        "content": "One XIAO 1.47-inch Touch Display with ESP32-S3. This firmware targets the ESP32-S3 variant; the nRF52840 variant is unsupported.",
+        "id": "b1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A phone with the Muse app, a Muse account and Bluetooth available for nearby-device pairing.",
+        "id": "b2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Your own Muse SDK token from <a href=\"https://gadgets.muse.ai\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a>, under Account &gt; SDK tokens. Keep it private and enter it in the flash page's token prompt.",
+        "id": "b3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A USB data cable and a desktop computer running Chrome or Edge for the browser's USB flash tool.",
+        "id": "b4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A 2.4 GHz Wi-Fi network with internet access and USB power for the sign during use.",
+        "id": "b5",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "For a first installation, save the existing firmware using the backup instructions in the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/door-sign/projects/door-sign/README.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">project README</a>. Position the display where its screen, USR1 and USR2 remain reachable.",
+        "id": "p3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Flash Door Sign",
+        "expanded": true,
+        "id": "s2",
+        "indent": 0,
+        "title": "Flash Door Sign",
+        "type": "step"
+      },
+      {
+        "content": "The firmware attachment is pending in this private draft. Once it is attached, connect the ESP32-S3 display with the USB data cable and use the flash tool below. Select the connected device when the browser asks, follow the page's reset prompts and enter your own Muse SDK token when prompted. After the write finishes and the browser releases the port, press the device's reset button. The screen should show its Muse setup state and nearby-device name.",
+        "id": "p4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "config": {
+          "device_id": "100069905",
+          "device_type": "57",
+          "firmware_name": "muse-gadget-door-sign-0a1381a.bin",
+          "firmware_size": "3018752",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-door-sign-0a1381a.bin",
+          "flash_address": "0x0",
+          "flash_mode": "bin",
+          "full_flash": false,
+          "muse_gadget": true
+        },
+        "id": "flash_door_sign",
+        "type": "flash-firmware"
+      },
+      {
+        "content": "Pair the display with Muse",
+        "expanded": true,
+        "id": "s3",
+        "indent": 0,
+        "title": "Pair the display with Muse",
+        "type": "step"
+      },
+      {
+        "content": "In the Muse app, enable Settings &gt; Devices &gt; Developer mode and choose Add Device. Select the nearby MuseGadget-… matching the name or suffix on the display, press USR1 to confirm and complete setup on your 2.4 GHz Wi-Fi network. Keep the display powered and connected while using the sign.",
+        "id": "p5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "After pairing, the setup name disappears and the normal Muse screen becomes available. The first sign request below checks that chat can reach this gadget. Settings remain accessible by swiping left on the display.",
+        "id": "p6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the Muse skill once",
+        "expanded": true,
+        "id": "s4",
+        "indent": 0,
+        "title": "Install the Muse skill once",
+        "type": "step"
+      },
+      {
+        "content": "Open <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/door-sign/projects/door-sign/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">SKILL.md</a>, copy its full contents into your Muse chat and ask: \"Remember this Door Sign skill and use it with my paired door-sign gadget.\" Install it once, and send the full file again whenever the skill changes.",
+        "id": "p7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Tell Muse whose door this is and your local time zone. For timed signs, the skill uses the current time and local offset before setting the deadline; Wi-Fi also starts network time synchronization. Continue once Muse confirms the skill and knows the owner and time zone.",
+        "id": "p8",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Set your first sign",
+        "expanded": true,
+        "id": "s5",
+        "indent": 0,
+        "title": "Set your first sign",
+        "type": "step"
+      },
+      {
+        "content": "Say: \"I'm in a meeting for two minutes. Put Dad on the door and offer Dinner, Need you and Parcel.\" Expect a red Meeting sign with Dad's name, an end time and three reply buttons. At the deadline it changes to green Free and sends an expiry notice to Muse.",
+        "id": "b6",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"I'm focusing for an hour. Offer Need you and Parcel.\" Expect an amber Focus sign with those two replies.",
+        "id": "b7",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"I'm free now. Show Free.\" Expect the active green Free sign.",
+        "id": "b8",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"Show Recording with a purple background until 4 PM.\" Expect a custom sign with the short title Recording and the requested local end time.",
+        "id": "b9",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"Clear the door sign.\" Expect the ordinary Muse face to return.",
+        "id": "b10",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Ask Muse to check the saved sign if an update is uncertain. Each new sign replaces the previous sign and its reply choices. Use short English labels: a title of at most 10 characters and replies of at most 12 characters fit this small screen best.",
+        "id": "p9",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Optional routines include \"Set Focus every weekday from 9 to 11\" or \"Follow my work calendar during office hours.\" These depend on scheduling or calendar services available to your Muse account; Muse must confirm a routine was created. The device holds one current sign and one deadline. Calendar following and recurring routines still await project hardware verification.",
+        "id": "p10",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Send a message from the door",
+        "expanded": true,
+        "id": "s6",
+        "indent": 0,
+        "title": "Send a message from the door",
+        "type": "step"
+      },
+      {
+        "content": "Tap one reply button and look for a checkmark with Sent inside that button for three seconds. This means the message entered the device's event queue; delivery to the owner's Muse chat depends on the network. Wait ten seconds before another tap. A delivered reply is attributed to someone at the owner's door.",
+        "id": "p11",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Hold USR1 while speaking, then release it to send a visitor voice note. Muse's answer appears as text on the display. Press USR2 to sleep or wake the screen; waking returns to the active sign.",
+        "id": "p12",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Check the operating limits",
+        "expanded": true,
+        "id": "s7",
+        "indent": 0,
+        "title": "Check the operating limits",
+        "type": "step"
+      },
+      {
+        "content": "An accurate clock is required for deadlines. Local HH:MM means its next occurrence; a time at or before the current time means tomorrow. Ask Muse to keep the time-zone offset current for travel and daylight saving. Use an untimed sign while accurate time is unavailable.",
+        "id": "p13",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The sign is designed to save its state and deadline across reboot; physical power-cycle recovery remains pending. Pending message delivery and the tap cooldown live in memory, and the event queue is bounded. Treat messages during power loss or a long outage as potentially missed. Wi-Fi reconnect, outage recovery and midnight-deadline checks also remain pending on hardware.",
+        "id": "p14",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "One physical XIAO 1.47-inch unit was checked on 2026-11-04 for Muse setting the sign, a tap reaching Muse and a reply reaching the owner, expiry returning to Free, sharp text and complete labels, a USR1 voice note and USR2 sleep/wake. The final release image's Hub-page flash-and-pair journey still awaits verification. See the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/door-sign/projects/door-sign/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">full validation record</a> for the tested revision and remaining checks.",
+        "id": "p15",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Use general availability that is suitable for a publicly visible door. A tap identifies the selected message while the visitor's identity stays unknown. Voice recording runs while USR1 is held and sends the note to the owner's Muse account.",
+        "id": "p16",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "images": [
+    "https://sensecraft-statics.seeed.cc/refer/pic/1793857832132_K6PieA_hub-cover.jpg"
+  ],
+  "info": {
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "app_name": "Door Sign",
+    "author": "limengdu",
+    "excerpt": "A Muse-controlled study-door sign for families and makers. Show your availability on the XIAO Touch Display and receive visitors' tap replies or voice notes in your Muse chat.",
+    "license": null,
+    "scene": "2"
+  },
+  "materials": [
+    {
+      "buy_url": "https://www.seeedstudio.com/1-47-Inch-Touch-Display-Powered-by-XIAO-ESP32-S3-Plus-p-6996.html?___store=retailer",
+      "id": "100069905",
+      "name": "XIAO 1.47\" Touch Display (ESP32-S3)",
+      "note": "Door status display, touch replies and visitor microphone. ESP32-S3 variant required; the nRF52840 variant is not supported.",
+      "quantity": "1"
+    }
+  ]
+}

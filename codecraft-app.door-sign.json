@@ -92,7 +92,7 @@
         "type": "step"
       },
       {
-        "content": "The firmware attachment is pending in this private draft. Once it is attached, connect the ESP32-S3 display with the USB data cable and use the flash tool below. Select the connected device when the browser asks, follow the page's reset prompts and enter your own Muse SDK token when prompted. After the write finishes and the browser releases the port, press the device's reset button. The screen should show its Muse setup state and nearby-device name.",
+        "content": "Connect the XIAO 1.47\" Touch Display to your computer with a USB data cable and use the firmware tool below to install Door Sign; select the device when the browser asks. When the write finishes and the page releases the port, press the board's reset button so it starts Door Sign. Then enter your own Muse SDK token when the page asks; the device stores it and restarts. Continue to pairing after the token step. The screen shows the Muse setup state and the nearby-device name.",
         "id": "p4",
         "indent": 0,
         "type": "paragraph"
@@ -268,9 +268,9 @@
     ]
   },
   "sync": {
-    "local_revision": 3,
+    "local_revision": 4,
     "last_pushed_revision": 3,
     "last_pushed_at": "2026-11-05T06:02:01Z",
-    "last_pushed_hash": "0ff615bc255f68ae11277e275a769873ab2174f88e7a5e0c7d9dc39593b04b06"
+    "last_pushed_hash": "sha256:c437c16b91075ac905ba5392fb5cda10791555d3f40555fe1650679789735cfa"
   }
 }
