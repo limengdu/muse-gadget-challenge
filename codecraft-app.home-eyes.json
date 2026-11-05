@@ -12,7 +12,7 @@
     "excerpt": "Use your SenseCAP Watcher with Muse to check a room, watch for scene changes, and leave screen messages for family at home. An experimental project for families and makers with a Muse account.",
     "scene": "5",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -250,8 +250,8 @@
   },
   "sync": {
     "local_revision": 4,
-    "last_pushed_revision": 3,
-    "last_pushed_at": "2026-11-05T06:02:00Z",
-    "last_pushed_hash": "sha256:1d80d3bd8cdc0b62fa061bd5476dc3c626f47509040fc24332376f6e706bdebd"
+    "last_pushed_revision": 4,
+    "last_pushed_at": "2026-11-05T06:37:59Z",
+    "last_pushed_hash": "sha256:8cfbb06d221a19ab22b40f130a8e8315fc9479ce93f6d40bb1d353e6f5812e0c"
   }
 }

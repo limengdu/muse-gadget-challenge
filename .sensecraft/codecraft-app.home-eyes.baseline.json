@@ -66,7 +66,7 @@
         "type": "step"
       },
       {
-        "content": "Connect the Watcher to the computer with the USB data cable. Use the firmware tool below and select the Watcher's ESP32-S3 / XIAO console port. This private draft is awaiting its firmware attachment; flashing becomes available when the release is attached.",
+        "content": "Connect the Watcher to your computer with a USB data cable and use the firmware tool below; select the Watcher's ESP32-S3 console port.",
         "id": "home_eyes_paragraph_4",
         "indent": 0,
         "type": "paragraph"
@@ -213,7 +213,7 @@
     "app_name": "Home Eyes",
     "author": "limengdu",
     "excerpt": "Use your SenseCAP Watcher with Muse to check a room, watch for scene changes, and leave screen messages for family at home. An experimental project for families and makers with a Muse account.",
-    "license": null,
+    "license": "Apache-2.0",
     "scene": "5"
   },
   "materials": [
