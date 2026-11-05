@@ -45,6 +45,14 @@ typedef struct {
 } air_core_t;
 typedef bool (*air_save_fn)(const air_core_t *state, void *ctx);
 
+typedef struct {
+    air_view_t view;
+    int category, age_label;
+    bool aqi;
+    char place[AIR_PLACE_BYTES], advice[AIR_ADVICE_BYTES];
+    char values[2][32], updated[32];
+} air_screen_t;
+
 extern const char *const air_view_names[AIR_VIEW_COUNT];
 extern const char *const air_category_names[AIR_CATEGORY_COUNT];
 extern const char *const air_category_labels[AIR_CATEGORY_COUNT];
@@ -57,3 +65,8 @@ cJSON *air_core_command(air_core_t *c, const char *command, const cJSON *params,
                         int64_t epoch, air_save_fn save, void *ctx);
 void air_guardian_render(card_rgb565_t *canvas, const air_core_t *c,
                          int64_t epoch, int local_minutes);
+void air_guardian_screen(air_screen_t *out, const air_core_t *c, int64_t epoch, int local_minutes);
+// Returns seconds until the next visible age change, or -1 for an event wait.
+// 返回距下一次可见年龄变化的秒数；-1 表示等待事件。
+int64_t air_guardian_next_change(const air_core_t *c, int64_t epoch);
+void air_guardian_render_screen(card_rgb565_t *canvas, const air_screen_t *screen);

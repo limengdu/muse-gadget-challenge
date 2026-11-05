@@ -19,6 +19,8 @@
 #include "gadget_events.c"
 
 static int64_t now;
+static unsigned internal_tasks, psram_tasks;
+static bool fail_task;
 #ifdef LINK_FAKE_CUSTOM_CALLOC
 static bool fail_calloc;
 static unsigned psram_allocations, internal_allocations;
@@ -52,7 +54,18 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t h, TickType_t wait) {
 BaseType_t xSemaphoreGive(SemaphoreHandle_t h) { (void)h; return pdTRUE; }
 BaseType_t xTaskCreate(TaskFunction_t task, const char *name, unsigned stack,
                        void *arg, unsigned priority, TaskHandle_t *handle) {
-    (void)task; (void)name; (void)stack; (void)arg; (void)priority;
+    assert(task == event_task && !strcmp(name, "gadget_events") && stack == 6144 && !arg && priority == 3);
+    internal_tasks++;
+    if (fail_task) return pdFALSE;
+    if (handle) *handle = (void *)1;
+    return pdPASS;
+}
+BaseType_t xTaskCreateWithCaps(TaskFunction_t task, const char *name, unsigned stack,
+                              void *arg, unsigned priority, TaskHandle_t *handle, unsigned caps) {
+    assert(task == event_task && !strcmp(name, "gadget_events") && stack == 6144 && !arg && priority == 3);
+    assert(caps == MALLOC_CAP_SPIRAM);
+    psram_tasks++;
+    if (fail_task) return pdFALSE;
     if (handle) *handle = (void *)1;
     return pdPASS;
 }
@@ -148,9 +161,25 @@ static void queue_tests(void) {
     if (TEST_PSRAM_AVAILABLE) assert(psram_allocations == 2 && internal_allocations == 0);
     else assert(psram_allocations == 0 && internal_allocations == 2);
 #endif
+    fail_task = true; assert(!gadget_events_init() && !atomic_load(&s_ready)); fail_task = false;
+    assert(internal_tasks + psram_tasks == 1);
     assert(gadget_events_init() && gadget_events_init());
+#if CONFIG_SPIRAM
+    if (TEST_PSRAM_AVAILABLE) assert(psram_tasks == 2 && internal_tasks == 0);
+    else assert(psram_tasks == 0 && internal_tasks == 2);
+#else
+    assert(psram_tasks == 0 && internal_tasks == 2);
+#endif
     cJSON *data = cJSON_Parse("{\"pressed\":true,\"count\":2}");
+#ifdef LINK_FAKE_CUSTOM_CALLOC
+    unsigned previous_psram = psram_allocations, previous_internal = internal_allocations;
+    fail_calloc = true; assert(!gadget_events_post("button", "Ready", data)); fail_calloc = false;
+#endif
     assert(gadget_events_post("button", "Ready \"now\"", data));
+#ifdef LINK_FAKE_CUSTOM_CALLOC
+    if (TEST_PSRAM_AVAILABLE) assert(psram_allocations == previous_psram + 2 && internal_allocations == previous_internal);
+    else assert(psram_allocations == previous_psram && internal_allocations == previous_internal + 2);
+#endif
     cJSON_Delete(data);
     event_t *event = dequeue();
     assert(!strcmp(event->message, "[button event] Ready \"now\"\n{\"pressed\":true,\"count\":2}"));

@@ -28,6 +28,10 @@ cJSON *air_guardian_command(const char *command, const cJSON *params, const char
 // Presents a native RGB565 dashboard during connected/reconnecting states while images are inactive.
 // 在已连接或重连期间且未展示图片时呈现原生 RGB565 仪表盘。
 bool led_status_air_draw(const uint16_t *pixels);
+bool led_status_air_active(void);
+// Wakes the worker after the display returns to the dashboard.
+// 显示切回看板后唤醒后台任务。
+void air_guardian_display_changed(void);
 // Queues the next persistent view on the application worker.
 // 将下一个需要持久保存的视图交给应用后台任务。
 void air_guardian_cycle_view(void);

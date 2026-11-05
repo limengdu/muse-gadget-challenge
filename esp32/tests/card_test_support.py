@@ -59,6 +59,8 @@ def write_rtos(out):
 typedef void *TaskHandle_t;
 typedef void (*TaskFunction_t)(void *);
 BaseType_t xTaskCreate(TaskFunction_t, const char *, unsigned, void *, unsigned, TaskHandle_t *);
+BaseType_t xTaskCreateWithCaps(TaskFunction_t, const char *, unsigned, void *, unsigned, TaskHandle_t *, unsigned);
+TaskHandle_t xTaskGetCurrentTaskHandle(void);
 void vTaskDelete(TaskHandle_t);
 void vTaskDelay(int);
 uint32_t ulTaskNotifyTake(BaseType_t, TickType_t);

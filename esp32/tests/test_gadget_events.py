@@ -110,11 +110,11 @@ class GadgetEvents(unittest.TestCase):
                 if line.startswith("@event.request "): json.loads(line[len("@event.request "):])
 
     def test_psram_allocation_and_no_internal_fallback_when_present(self):
-        for present in (0, 1):
-            with self.subTest(psram=present), tempfile.TemporaryDirectory() as tmp:
+        for present, watcher in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            with self.subTest(psram=present, watcher=watcher), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp)
                 write_rtos(out)
-                (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 1\n")
+                (out / "sdkconfig.h").write_text(f"#define CONFIG_SPIRAM 1\n#define CONFIG_MUSE_BOARD_SENSECAP_WATCHER {watcher}\n")
                 (out / "esp_psram.h").write_text("#include <stdbool.h>\nbool esp_psram_is_initialized(void);\n")
                 binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
                     flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"', "-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])

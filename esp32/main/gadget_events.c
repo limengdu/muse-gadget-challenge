@@ -65,6 +65,13 @@ static unsigned s_head, s_count, s_history_head, s_history_count;
 static uint64_t s_last_seq, s_dropped;
 static char s_reply[GADGET_EVENTS_REPLY_BYTES];
 
+static int memory_caps(void) {
+#if CONFIG_SPIRAM
+    if (esp_psram_is_initialized()) return MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#endif
+    return MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+}
+
 // Immutable events are shared by the history, pending queue and sender.
 // 不可变事件由历史记录、待发队列及发送任务共同持有。
 static void release(event_t *event) {
@@ -109,7 +116,7 @@ static event_t *make_event(const char *source, const char *summary, const cJSON 
     if ((data && !json) || (json && strlen(json) > DATA_MAX)) { cJSON_free(json); return NULL; }
     size_t ns = strlen(source) + 1, nt = strlen(summary) + 1, nd = json ? strlen(json) + 1 : 0;
     size_t message_cap = ns + nt + nd + 12;
-    event_t *event = calloc(1, sizeof(*event) + ns + nt + nd + message_cap);
+    event_t *event = heap_caps_calloc(1, sizeof(*event) + ns + nt + nd + message_cap, memory_caps());
     if (!event) { cJSON_free(json); return NULL; }
     event->source = event->storage;
     event->summary = event->source + ns;
@@ -784,13 +791,16 @@ bool gadget_events_init(void) {
     if (!s_lock || !s_rx_lock) return false;
     // Allocate receive rows once in PSRAM; internal RAM is used without PSRAM.
     // 接收行仅分配一次；有 PSRAM 时使用 PSRAM，否则使用内部内存。
-    int caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
-#if CONFIG_SPIRAM
-    if (esp_psram_is_initialized()) caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-#endif
+    int caps = memory_caps();
     if (!s_rx) s_rx = heap_caps_calloc(2, sizeof(*s_rx), caps);
     if (!s_stream) s_stream = heap_caps_calloc(1, sizeof(*s_stream), caps);
     if (!s_rx || !s_stream) return false;
+#if CONFIG_SPIRAM
+    if (caps & MALLOC_CAP_SPIRAM) {
+        if (xTaskCreateWithCaps(event_task, "gadget_events", 6144, NULL, 3, &s_task,
+                                MALLOC_CAP_SPIRAM) != pdPASS) return false;
+    } else
+#endif
     if (xTaskCreate(event_task, "gadget_events", 6144, NULL, 3, &s_task) != pdPASS) return false;
     atomic_store(&s_ready, true);
     return true;

@@ -19,38 +19,82 @@
 #include "config_store.h"
 #include "gadget_clock.h"
 #include "led_status.h"
+#include "stack_monitor.h"
+#include "sdkconfig.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #define AIR_STATE_KEY "outdoor_air"
 #define AIR_REQUEST_BYTES 96
+#define AIR_TASK_STACK 8192
+// TODO(D1 NVS high-water measurement): Tune the save stack with erase-path margin.
+#define AIR_SAVE_STACK 4096
 
 typedef struct {
     char command[24], request_id[AIR_REQUEST_BYTES];
     cJSON *params;
     noise_ctrl_session_generation_t generation;
-    bool cycle;
+    bool cycle, wake;
 } air_request_t;
 
 static air_core_t s_core;
 static QueueHandle_t s_requests;
 static uint16_t *s_pixels;
+static atomic_bool s_display_dirty;
 static const char *TAG = "link.air";
 
-static int64_t now_s(void) { return esp_timer_get_time() / 1000000; }
 static int64_t epoch(void) { return gadget_clock_valid() ? gadget_clock_epoch() : 0; }
+
+static void clock_changed(void) {
+    air_request_t request = {.wake = true};
+    if (s_requests) (void)xQueueSend(s_requests, &request, 0);
+}
+
+void air_guardian_display_changed(void) {
+    atomic_store(&s_display_dirty, true);
+    clock_changed();
+}
+
+#if CONFIG_SPIRAM
+typedef struct {
+    const char *json;
+    TaskHandle_t waiter;
+    bool ok;
+} air_save_t;
+
+// Writes the serialized snapshot on a temporary internal task stack.
+// 在临时内部任务栈上写入序列化快照。
+static void save_task(void *arg) {
+    air_save_t *job = arg;
+    job->ok = config_set_str(AIR_STATE_KEY, job->json);
+    stack_monitor_record(NULL);
+    xTaskNotifyGive(job->waiter);
+    vTaskDelete(NULL);
+}
+#endif
 
 static bool save(const air_core_t *state, void *ctx) {
     (void)ctx;
     cJSON *p = air_core_json(state);
     char *json = p ? cJSON_PrintUnformatted(p) : NULL;
-    bool ok = json && config_set_str(AIR_STATE_KEY, json);
+    bool ok = false;
+    if (json) {
+#if CONFIG_SPIRAM
+        air_save_t job = {.json = json, .waiter = xTaskGetCurrentTaskHandle()};
+        if (xTaskCreate(save_task, "air_save", AIR_SAVE_STACK, &job, 3, NULL) == pdPASS) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            ok = job.ok;
+        }
+#else
+        ok = config_set_str(AIR_STATE_KEY, json);
+#endif
+    }
     cJSON_free(json);
     cJSON_Delete(p);
     return ok;
@@ -66,20 +110,57 @@ static void restore(void) {
     cJSON_Delete(p);
 }
 
-// Owns snapshot updates, NVS writes and native LCD redraws on a single worker.
-// 在单个后台任务中处理快照更新、NVS 写入和原生 LCD 重绘。
+static TickType_t next_wait(int64_t current) {
+    int64_t seconds = air_guardian_next_change(&s_core, current);
+    if (seconds < 0) return portMAX_DELAY;
+    uint64_t ticks = (uint64_t)seconds * configTICK_RATE_HZ;
+    return ticks >= (uint64_t)(TickType_t)portMAX_DELAY ? portMAX_DELAY - 1 : (TickType_t)ticks;
+}
+
+// Applies updates after persistence completes, then renders the native LCD.
+// 持久化完成后应用快照更新，并绘制原生 LCD 画面。
 static void air_task(void *arg) {
     (void)arg;
     card_rgb565_t canvas;
     card_rgb565_canvas(&canvas, s_pixels, 480 * 480 * 2, 480, 480);
-    int64_t rendered = -5;
-    bool dirty = true;
+    air_screen_t shown;
+    bool shown_valid = false;
+    bool stack_logged = false;
+    const char *reason = "initial";
     for (;;) {
+        if (atomic_exchange(&s_display_dirty, false)) {
+            shown_valid = false;
+            reason = "display";
+        }
+        int64_t current = epoch();
+        int local_minutes = current ? (int)((current / 60 + gadget_clock_offset_minutes() + 1440) % 1440) : -1;
+        air_screen_t next;
+        air_guardian_screen(&next, &s_core, current, local_minutes);
+        bool active = led_status_air_active();
+        if (active && (!shown_valid || memcmp(&next, &shown, sizeof(next)))) {
+            if (shown_valid) {
+                if (next.view != shown.view) reason = "view";
+                else if (!strcmp(reason, "snapshot")) reason = "snapshot";
+                else if (next.age_label != shown.age_label) reason = "age";
+                else reason = "clock";
+            }
+            air_guardian_render_screen(&canvas, &next);
+            if (led_status_air_draw(s_pixels)) {
+                memcpy(&shown, &next, sizeof(shown));
+                shown_valid = true;
+                ESP_LOGI(TAG, "redraw reason=%s", reason);
+            }
+        }
+        if (!stack_logged) {
+            stack_monitor_record(NULL);
+            stack_logged = true;
+        }
+        reason = "clock";
         air_request_t request;
-        bool received = xQueueReceive(s_requests, &request, pdMS_TO_TICKS(5000)) == pdTRUE;
-        int64_t now = now_s();
-        if (received) {
+        bool received = xQueueReceive(s_requests, &request, active ? next_wait(current) : portMAX_DELAY) == pdTRUE;
+        if (received && !request.wake) {
             if (request.cycle) {
+                reason = "view";
                 cJSON *params = cJSON_CreateObject();
                 cJSON_AddStringToObject(params, "view", air_view_names[(s_core.view + 1) % AIR_VIEW_COUNT]);
                 cJSON *r = air_core_command(&s_core, "air.set_view", params, epoch(), save, NULL);
@@ -88,17 +169,11 @@ static void air_task(void *arg) {
                 cJSON_Delete(r);
                 cJSON_Delete(params);
             } else {
+                if (!strcmp(request.command, "air.update")) reason = "snapshot";
                 cJSON *r = air_core_command(&s_core, request.command, request.params, epoch(), save, NULL);
                 noise_ctrl_send_command_result(request.generation, request.request_id, r);
             }
             cJSON_Delete(request.params);
-            dirty = true;
-        }
-        if (dirty || now - rendered >= 5) {
-            air_guardian_render(&canvas, &s_core, epoch(), gadget_clock_minutes_of_day());
-            led_status_air_draw(s_pixels);
-            dirty = false;
-            rendered = now;
         }
     }
 }
@@ -109,7 +184,13 @@ bool air_guardian_init(void) {
     if (!s_pixels || !s_requests) goto fail;
     air_core_init(&s_core);
     restore();
-    if (xTaskCreate(air_task, "outdoor_air", 8192, NULL, 2, NULL) != pdPASS) goto fail;
+#if CONFIG_SPIRAM
+    if (xTaskCreateWithCaps(air_task, "outdoor_air", AIR_TASK_STACK, NULL, 2, NULL,
+                            MALLOC_CAP_SPIRAM) != pdPASS) goto fail;
+#else
+    if (xTaskCreate(air_task, "outdoor_air", AIR_TASK_STACK, NULL, 2, NULL) != pdPASS) goto fail;
+#endif
+    gadget_clock_set_change_cb(clock_changed);
     return true;
 fail:
     free(s_pixels);

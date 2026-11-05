@@ -120,8 +120,12 @@ pairing handling. The selected view survives reboot. An unknown clock labels
 the observation in UTC and marks age as unknown; after three hours the header
 requests a refresh. Setup, pairing and error states use the SDK's status screen. During reconnection,
 the saved snapshot remains visible until Muse refreshes.
-Muse images temporarily replace the advisor; `display.show_animation {}`
-returns to it within five seconds.
+
+The page redraws when visible content changes or the age header changes.
+`Updated hh:mm` is the observation time; it stays steady as the local clock
+advances. Night is selected with the view control. Frames are drawn in strips
+with brief pauses between them. Muse images temporarily replace the advisor;
+`display.show_animation {}` wakes the dashboard worker to restore it.
 
 ## Check locally
 

@@ -87,9 +87,32 @@ class AirGuardian(unittest.TestCase):
             self.assertEqual(hashlib.sha256(result.stdout).hexdigest(), reference["rgb565_icons_sha256"])
 
     def test_worker_queue_nvs_restore_and_session_reply(self):
+        for psram in (0, 1):
+            with self.subTest(psram=psram):
+                self.check_worker(psram)
+
+    def check_worker(self, psram):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             write_rtos(out)
+            (out / "sdkconfig.h").write_text(f"#define CONFIG_SPIRAM {psram}\n")
+            (out / "freertos/FreeRTOS.h").write_text('''#pragma once
+#include <stdint.h>
+#define configTICK_RATE_HZ 1000
+#define pdTRUE 1
+#define pdFALSE 0
+#define pdPASS 1
+#define portMAX_DELAY UINT32_MAX
+#define pdMS_TO_TICKS(ms) (ms)
+typedef int BaseType_t;
+typedef uint32_t TickType_t;
+''')
+            (out / "esp_log.h").write_text('''#pragma once
+void air_test_log(const char *, const char *, ...);
+#define ESP_LOGI(tag, fmt, ...) air_test_log(tag, fmt, __VA_ARGS__)
+#define ESP_LOGW(tag, fmt, ...) ((void)0)
+#define ESP_LOGE(tag, fmt, ...) ((void)0)
+''')
             (out / "freertos/queue.h").write_text("""#pragma once
 #include "freertos/FreeRTOS.h"
 typedef void *QueueHandle_t;
@@ -105,6 +128,22 @@ BaseType_t xQueueReceive(QueueHandle_t, void *, TickType_t);
             result = run_host(binary)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_indicator_draw_buffers_use_internal_ram(self):
+        source = (ROOT / "main/led_status.c").read_text()
+        start = source.index("// Draw buffers are copied into the frame buffer by the CPU.")
+        config = source[start:source.index("#elif CONFIG_HOMEHUB_LED_BACKEND_WAVESHARE_C6_ST7789", start)]
+        for enabled, psram in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            with self.subTest(outdoor_air=enabled, psram=psram), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                harness = out / "caps.c"
+                harness.write_text('#include "esp_heap_caps.h"\n' + config + '\nint main(void) {\n'
+                    + '    return LCD_BUF_CAPS != (MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);\n'
+                    + '}\n')
+                binary = compile_host(out, [harness], flags=[f"-DCONFIG_HOMEHUB_AIR_GUARDIAN={enabled}",
+                                                           f"-DCONFIG_SPIRAM={psram}"])
+                result = run_host(binary)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_lcd_status_image_and_dashboard_ownership(self):
         try:
             from .test_link_ota import function_source
@@ -114,7 +153,7 @@ BaseType_t xQueueReceive(QueueHandle_t, void *, TickType_t);
         source = source[source.index("static esp_lcd_panel_handle_t s_panel"):]
         functions = "\n".join(function_source(source, signature) for signature in (
             "void led_status_set_state(", "static void lcd_air_sync_state(", "static bool lcd_draw_image_rect(",
-            "void led_status_show_animation(", "bool led_status_air_draw(",
+            "void led_status_show_animation(", "bool led_status_air_active(", "bool led_status_air_draw(",
             "static void lcd_draw_dot(", "static void led_hw_set_color(", "static void led_hw_set_connected("))
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
@@ -130,6 +169,7 @@ BaseType_t xQueueReceive(QueueHandle_t, void *, TickType_t);
 #define LCD_H_RES 480
 #define LCD_V_RES 480
 #define LCD_BAR_ROWS 24
+#define LCD_IMAGE_MAX_ROWS 23
 #define LCD_DOT_SIZE 1
 #define LCD_DOT_X 450
 #define LCD_DOT_Y 30
@@ -141,42 +181,67 @@ static bool dot_cell_set(int x,int y) {(void)x;(void)y;return true;}
 static uint8_t to_full_scale(uint8_t v) {return v;}
 static uint16_t lcd_px(rgb_t c) {(void)c;return 0xffff;}
 static const rgb_t COLOR_OFF={0,0,0};
-static void *s_panel=(void *)1,*s_mutex=(void *)1,*s_lcd_lock=(void *)1;
+static void *s_panel=(void *)1,*s_mutex=(void *)2,*s_lcd_lock=(void *)1;
 static atomic_bool s_air_ready,s_air_online;
 static bool s_air_drawn,s_air_was_ready,s_image_mode,s_title_dirty,s_bars_drawn,s_dot_drawn;
 static led_state_t s_state;
 static uint16_t s_anim_buf[480*23];
-static int clears,draws;
-static void xSemaphoreTake(void *p,int wait) {(void)p;(void)wait;}
-static void xSemaphoreGive(void *p) {(void)p;}
+static uint16_t frame[480*480];
+static int clears,draws,yields,wakes,next_y,fail_at;
+static bool locked,interrupt_draw;
+static void xSemaphoreTake(void *p,int wait) {
+    (void)wait;if(p==s_lcd_lock){assert(!locked);locked=true;}
+}
+static void xSemaphoreGive(void *p) {if(p==s_lcd_lock){assert(locked);locked=false;}}
+static void air_guardian_display_changed(void) {assert(!locked);wakes++;}
+static void vTaskDelay(int ticks) {
+    assert(ticks==1 && locked);yields++;
+    if(interrupt_draw) atomic_store(&s_air_ready,false);
+}
 static void lcd_clear_rows(int a,int b) {assert(a==0 && b==480);clears++;}
 static bool lcd_draw(int a,int b,int x,int y,const uint16_t *p) {
-    (void)a;(void)b;(void)x;(void)y;assert(p);draws++;return true;
+    assert(locked && p==s_anim_buf);draws++;
+    if(x==480){
+        assert(a==0 && b==next_y && y>b && y-b<=LCD_IMAGE_MAX_ROWS);
+        assert(!memcmp(p,frame+b*480,(size_t)(y-b)*480*sizeof(uint16_t)));next_y=y;
+    }
+    return draws!=fail_at;
 }
 static void lcd_overlay_rect(uint16_t *p,int x,int y,int w,int h) {(void)p;(void)x;(void)y;(void)w;(void)h;}
 ''' + functions + r'''
+static bool dashboard(void) {next_y=0;return led_status_air_draw(frame);}
 int main(void) {
     uint16_t pixel=0x3412;
-    assert(!led_status_air_draw(&pixel) && draws==0);
+    for(int i=0;i<480*480;i++)frame[i]=(uint16_t)i;
+    assert(!led_status_air_active() && !dashboard() && draws==0);
     led_status_set_state(LED_STATE_WS_CONNECTED);lcd_air_sync_state();assert(s_air_ready);
-    assert(led_status_air_draw(&pixel) && s_air_drawn && draws==1);
+    assert(wakes==1 && led_status_air_active());lcd_air_sync_state();assert(wakes==1);
+    assert(dashboard() && s_air_drawn && draws==21 && next_y==480 && yields==20);
+    s_air_was_ready=false;lcd_air_sync_state();assert(wakes==1);
     led_hw_set_connected();led_hw_set_color((rgb_t){1,2,3});lcd_draw_dot(true);
-    assert(draws==1 && !s_bars_drawn && !s_dot_drawn);
+    assert(draws==21 && !s_bars_drawn && !s_dot_drawn);
     assert(lcd_draw_image_rect(0,0,1,1,&pixel));
     assert(s_image_mode && !s_air_drawn && s_anim_buf[0]==0x1234);
-    assert(!led_status_air_draw(&pixel));
+    assert(!led_status_air_active() && !dashboard());
     led_status_show_animation();assert(!s_image_mode && s_title_dirty);
-    assert(led_status_air_draw(&pixel));
+    assert(wakes==2 && dashboard() && next_y==480);
+    led_status_show_animation();assert(wakes==2);
     assert(lcd_draw_image_rect(0,0,1,1,&pixel));
     led_status_set_state(LED_STATE_WS_DISCONNECTED);lcd_air_sync_state();
     assert(s_air_ready && !s_air_online && !s_image_mode);
-    assert(led_status_air_draw(&pixel));
+    assert(wakes==3 && dashboard());
     assert(!lcd_draw_image_rect(0,0,1,1,&pixel) && !s_image_mode);
-    led_status_set_state(LED_STATE_WIFI_CONNECTING);lcd_air_sync_state();assert(led_status_air_draw(&pixel));
+    led_status_set_state(LED_STATE_WIFI_CONNECTING);lcd_air_sync_state();assert(dashboard() && wakes==3);
     led_status_set_state(LED_STATE_PAIRING_CONFIRM_REQUIRED);lcd_air_sync_state();assert(!s_air_ready && !s_air_drawn);
+    assert(!led_status_air_active() && !dashboard());
     led_status_set_state(LED_STATE_ERROR);lcd_air_sync_state();assert(!s_air_ready);
-    led_status_set_state(LED_STATE_WS_CONNECTED);lcd_air_sync_state();assert(led_status_air_draw(&pixel));
-    assert(clears==5);return 0;
+    led_status_set_state(LED_STATE_WS_CONNECTED);lcd_air_sync_state();assert(dashboard() && wakes==4);
+    assert(clears==3);
+    fail_at=draws+2;assert(!dashboard() && !s_air_drawn && !locked);fail_at=0;
+    assert(dashboard() && next_y==480);
+    interrupt_draw=true;int before=draws;
+    assert(!dashboard() && draws==before+1 && !s_air_drawn && !locked);
+    return 0;
 }
 ''')
             binary = compile_host(out, [harness], flags=["-DCONFIG_HOMEHUB_AIR_GUARDIAN=1",

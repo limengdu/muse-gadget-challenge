@@ -153,7 +153,7 @@ static const char *TAG = "link.led";
 #define LCD_V_RES        480
 // Lines per DMA bounce buffer (two, in internal RAM). They keep the panel fed
 // while PSRAM is busy, and save a cache flush of the frame buffer per draw.
-#define LCD_BOUNCE_LINES 10
+#define LCD_BOUNCE_LINES 20
 #define EXP_ADDR         0x20
 #define EXP_ADDR_ALT     0x39  // some boards
 #define EXP_REG_OUT0     0x02
@@ -1088,6 +1088,7 @@ static bool voice_render(void) {
 static void lcd_air_sync_state(void) {
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
     bool ready = atomic_load(&s_air_ready);
+    bool redraw = ready && !s_air_was_ready && !s_air_drawn;
     if (!ready && (s_air_was_ready || s_air_drawn)) {
         s_air_drawn = false;
         s_image_mode = false;
@@ -1096,10 +1097,11 @@ static void lcd_air_sync_state(void) {
     if (ready && !atomic_load(&s_air_online) && s_image_mode) {
         s_image_mode = false;
         s_air_drawn = false;
-        lcd_clear_rows(0, LCD_V_RES);
+        redraw = true;
     }
     s_air_was_ready = ready;
     xSemaphoreGive(s_lcd_lock);
+    if (redraw) air_guardian_display_changed();
 }
 #endif
 
@@ -1342,7 +1344,11 @@ void led_status_show_animation(void) {
     bool was_image = s_image_mode;
     if (was_image) {
         s_image_mode = false;
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+        s_air_drawn = false;
+#else
         lcd_clear_rows(0, LCD_V_RES);
+#endif
     }
     xSemaphoreGive(s_lcd_lock);
     if (!was_image) return;
@@ -1350,12 +1356,25 @@ void led_status_show_animation(void) {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_title_dirty = true;
     xSemaphoreGive(s_mutex);
+#if CONFIG_HOMEHUB_AIR_GUARDIAN
+    air_guardian_display_changed();
+#endif
 #elif CONFIG_HOMEHUB_LED_BACKEND_MUSE && CONFIG_HOMEHUB_DISPLAY_COMMANDS
     muse_ui_image_hide();
 #endif
 }
 
 #if CONFIG_HOMEHUB_AIR_GUARDIAN
+bool led_status_air_active(void) {
+    if (!s_panel || !s_lcd_lock) return false;
+    xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
+    bool active = s_air_ready && !s_image_mode;
+    xSemaphoreGive(s_lcd_lock);
+    return active;
+}
+
+// Copies native RGB565 strips through the internal image buffer, yielding between strips.
+// 经内部图片缓冲分条复制原生 RGB565 像素，并在相邻条带之间让出运行时间。
 bool led_status_air_draw(const uint16_t *pixels) {
     if (!s_panel || !s_lcd_lock || !pixels) return false;
     xSemaphoreTake(s_lcd_lock, portMAX_DELAY);
@@ -1364,7 +1383,15 @@ bool led_status_air_draw(const uint16_t *pixels) {
         s_air_drawn = true;
         s_bars_drawn = false;
         s_dot_drawn = false;
-        ok = lcd_draw(0, 0, LCD_H_RES, LCD_V_RES, pixels);
+        for (int y = 0; ok && y < LCD_V_RES; y += LCD_IMAGE_MAX_ROWS) {
+            int rows = LCD_V_RES - y;
+            if (rows > LCD_IMAGE_MAX_ROWS) rows = LCD_IMAGE_MAX_ROWS;
+            if (!atomic_load(&s_air_ready)) { ok = false; break; }
+            memcpy(s_anim_buf, pixels + y * LCD_H_RES, (size_t)rows * LCD_H_RES * sizeof(uint16_t));
+            ok = lcd_draw(0, y, LCD_H_RES, y + rows, s_anim_buf);
+            if (ok && y + rows < LCD_V_RES) vTaskDelay(1);
+        }
+        s_air_drawn = ok;
     }
     xSemaphoreGive(s_lcd_lock);
     return ok;
