@@ -12,7 +12,7 @@
     "excerpt": "A home outdoor air display for families and makers. Muse sends AQI or PM2.5 and short advice for your chosen place to a SenseCAP Indicator D1.",
     "scene": "2",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -213,8 +213,8 @@
   },
   "sync": {
     "local_revision": 5,
-    "last_pushed_revision": 4,
-    "last_pushed_at": "2026-11-05T06:08:05Z",
-    "last_pushed_hash": "sha256:b1bd4de93a516f2da5044c366dcd67ed16ac2f640ebb5005bc3d42b0032780e8"
+    "last_pushed_revision": 5,
+    "last_pushed_at": "2026-11-05T06:39:14Z",
+    "last_pushed_hash": "sha256:dd4bf3af5508ee9ba37974dc3a6736a63452c36a123ca6ac998b2f77ba7adca9"
   }
 }
