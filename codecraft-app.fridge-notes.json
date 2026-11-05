@@ -86,7 +86,7 @@
         "type": "paragraph"
       },
       {
-        "content": "Firmware attachment is pending in this private draft. This tool becomes usable after the reviewer attaches the release image.",
+        "content": "Connect the Sticky to your computer with a USB data cable and use the firmware tool below to install Fridge Notes. The page restarts the Sticky after the write and then asks for your own Muse SDK token: enter it, and the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p4",
         "indent": 0,
         "type": "paragraph"
@@ -281,9 +281,9 @@
     ]
   },
   "sync": {
-    "local_revision": 3,
+    "local_revision": 4,
     "last_pushed_revision": 3,
     "last_pushed_at": "2026-11-05T06:02:02Z",
-    "last_pushed_hash": "5f2dc7a62b87b3326294d07b59a8d49e7863462fbe75e2b10038511a0bf384b3"
+    "last_pushed_hash": "sha256:cc51f91ef988cd2db05214c120ab1d1dbd2fc5d6fc07dbd87923857eb412ed37"
   }
 }
