@@ -104,8 +104,8 @@
           "device_id": "113991315",
           "device_type": "37",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-home-eyes-89dd206.bin",
+          "firmware_name": "muse-gadget-home-eyes-89dd206.bin",
           "firmware_size": "2297856",
           "flash_address": "0x0",
           "muse_gadget": true,
@@ -249,9 +249,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:31Z",
-    "last_pushed_hash": "4d05988085fefc509eb9de1166b7dbeebd8cb98be788d711d7ef2c534b29dd46"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:02:00Z",
+    "last_pushed_hash": "9e22005e2b9cc112655d33d2fd2e9813dd093ddee45b7612ff00c9f0b75e9450"
   }
 }
