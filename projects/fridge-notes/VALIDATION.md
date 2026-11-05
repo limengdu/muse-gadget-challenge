@@ -156,3 +156,7 @@ Device reported Online with Wi-Fi connected. Through `tools/muse/chat.py`:
 
 Touch toggles, AI-button voice notes, VM mirror contents and sleep/wake were
 not exercised in this pass. Battery was about 11–13 % during the checks.
+
+## CodeCraft Hub draft flash (2026-11-05)
+
+The uploaded release `muse-gadget-fridge-notes-a8334df.bin` (token-free, built from `a8334df`) was flashed from the draft page of Hub app 13471 onto one reTerminal Sticky. After a reset the board started normally and the owner's device checks passed. Hub writes the application image only, so the token and pairing already stored on the board carried over. The draft page showed no reset or token prompt ([sensecraft-cli#6](https://github.com/Seeed-Solution/sensecraft-cli/issues/6)).
