@@ -291,6 +291,10 @@ while PSRAM was busy. With 20 lines the owner saw no artefacts.
 `tools/board.sh sensecap-indicator build`: app `0x1b1000` bytes in the fixed
 `0x200000` slot, 15 % free.
 
+## CodeCraft Hub draft flash (2026-11-05)
+
+The uploaded release `muse-gadget-outdoor-air-81cdb80.bin` (token-free, built from `81cdb80`) was flashed from the draft page of Hub app 13472 onto one SenseCAP Indicator D1. After a reset the board started normally and the owner's device checks passed. Hub writes the application image only, so the token and pairing already stored on the board carried over. On the first Hub flash the SDK token was also sent over USB serial (`>sdk_token=…`, answered `@sdk_token ok`). The draft page showed no reset or token prompt ([sensecraft-cli#6](https://github.com/Seeed-Solution/sensecraft-cli/issues/6)).
+
 ## Hardware checks still required
 
 On the owner's D1, record board revision and unit count, then exercise:
