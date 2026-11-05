@@ -12,7 +12,7 @@
     "excerpt": "Keep shopping, chores, to-do and notes lists on a reTerminal Sticky fridge display. Families and makers with a Muse account can add items through Muse and see what still needs doing.",
     "scene": "2",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -282,8 +282,8 @@
   },
   "sync": {
     "local_revision": 4,
-    "last_pushed_revision": 3,
-    "last_pushed_at": "2026-11-05T06:02:02Z",
-    "last_pushed_hash": "sha256:cc51f91ef988cd2db05214c120ab1d1dbd2fc5d6fc07dbd87923857eb412ed37"
+    "last_pushed_revision": 4,
+    "last_pushed_at": "2026-11-05T06:38:08Z",
+    "last_pushed_hash": "sha256:fbf28e20a364419ebd749247bcccd75bd67326b6bf576c03a9c6726dc30fc67a"
   }
 }

@@ -60,7 +60,7 @@
         "type": "paragraph"
       },
       {
-        "content": "Firmware attachment is pending in this private draft. This tool becomes usable after the reviewer attaches the release image.",
+        "content": "Connect the Sticky to your computer with a USB data cable and use the firmware tool below to install Fridge Notes. The page restarts the Sticky after the write and then asks for your own Muse SDK token: enter it, and the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p4",
         "indent": 0,
         "type": "paragraph"
@@ -252,7 +252,7 @@
     "app_name": "Fridge Notes",
     "author": "limengdu",
     "excerpt": "Keep shopping, chores, to-do and notes lists on a reTerminal Sticky fridge display. Families and makers with a Muse account can add items through Muse and see what still needs doing.",
-    "license": null,
+    "license": "Apache-2.0",
     "scene": "2"
   },
   "materials": [
