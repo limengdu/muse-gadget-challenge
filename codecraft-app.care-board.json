@@ -12,7 +12,7 @@
     "excerpt": "Send family messages and set daily reminders for an older parent on a reTerminal E1001. Families and makers using Muse can see when a reminder is confirmed and follow up when confirmation is missing.",
     "scene": "7",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -255,8 +255,8 @@
   },
   "sync": {
     "local_revision": 4,
-    "last_pushed_revision": 3,
-    "last_pushed_at": "2026-11-05T06:01:57Z",
-    "last_pushed_hash": "sha256:1c3896b80ffd648848cdf77ad9eccbfd790f0434cec20e7bf2bd76611707cfc1"
+    "last_pushed_revision": 4,
+    "last_pushed_at": "2026-11-05T06:37:55Z",
+    "last_pushed_hash": "sha256:f6db2f9b63409b74d08574ea1db3ccba33f11855a8a0a8eb90afb117c99b96e1"
   }
 }

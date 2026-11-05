@@ -72,7 +72,7 @@
         "type": "step"
       },
       {
-        "content": "Connect the E1001's console USB to your computer and use the firmware tool below to select its USB port and install Care Board. Keep the cable connected. After the write, press the device's Reset button when the page asks, and enter <strong>your own Muse SDK token</strong> at the page's token prompt. Follow the page's provisioning instructions; the token connects the gadget to your Muse account.",
+        "content": "Connect the E1001's console USB to your computer with a USB data cable and use the firmware tool below to install Care Board. When the write finishes, restart the E1001 (press its reset button, or switch it off and on) so it leaves flashing mode. Then enter your own Muse SDK token when the page asks; the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p5",
         "indent": 0,
         "type": "paragraph"
@@ -225,7 +225,7 @@
     "app_name": "Care Board for reTerminal E1001",
     "author": "limengdu",
     "excerpt": "Send family messages and set daily reminders for an older parent on a reTerminal E1001. Families and makers using Muse can see when a reminder is confirmed and follow up when confirmation is missing.",
-    "license": null,
+    "license": "Apache-2.0",
     "scene": "7"
   },
   "materials": [
