@@ -55,8 +55,12 @@ busy hold) and silent turns.
 `tools/board.sh reterminal-e1001 build`: app `0x1a1000` bytes in the fixed
 `0x200000` slot, **19 % free**. The partition table is unchanged.
 
+## CodeCraft Hub draft flash (2026-11-05)
+
+The uploaded release `muse-gadget-care-board-4dda0ae.bin` (token-free, built from `4dda0ae`) was flashed from the draft page of Hub app 13464 onto one reTerminal E1001. After a reset the board started normally and the owner's device checks passed. Hub writes the application image only, so the token and pairing already stored on the board carried over. The draft page showed no reset or token prompt ([sensecraft-cli#6](https://github.com/Seeed-Solution/sensecraft-cli/issues/6)).
+
 ## Awaiting checks
 
 - `read`, `checkin` and `call_request` events with the skill installed.
 - Overnight operation, Wi-Fi reconnection with queued events, and the daily reset.
-- Installation of the published firmware from CodeCraft Hub, with the SDK token sent over serial.
+- Hub installation on a board without a stored token, with the token entered through the page or USB serial.
