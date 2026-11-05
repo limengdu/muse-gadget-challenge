@@ -1,0 +1,257 @@
+{
+  "manifest_version": 1,
+  "identity": {
+    "app_id": "13466",
+    "remote_type": "Global",
+    "org_id": "424326273238784",
+    "account": null,
+    "created_at": "2026-11-05T05:40:50Z"
+  },
+  "info": {
+    "app_name": "Home Eyes",
+    "excerpt": "Use your SenseCAP Watcher with Muse to check a room, watch for scene changes, and leave screen messages for family at home. An experimental project for families and makers with a Muse account.",
+    "scene": "5",
+    "license": "Apache-2.0",
+    "author": "",
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "activity_id": null
+  },
+  "images": [
+    {
+      "path": "projects/home-eyes/media/hub-cover.jpg",
+      "sha256": "23254bce872164c9e33e86a73c1573e71010d5b5dde798e0d773c61b0bcb3a6a",
+      "file_url": "https://sensecraft-statics.seeed.cc/refer/pic/1793857827697_14xpMB_hub-cover.jpg",
+      "role": "cover"
+    }
+  ],
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Aim one SenseCAP Watcher at a room, then use your own Muse chat to request a photo, watch a fixed scene for changes, or leave an on-screen message for someone at home. Local scene comparisons ask Muse to inspect a photo when a change needs a verdict.",
+        "id": "home_eyes_paragraph_1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Home Eyes is experimental. Read the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/home-eyes/projects/home-eyes\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source</a>, <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/home-eyes/projects/home-eyes/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">Home Eyes skill</a>, and <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/home-eyes/projects/home-eyes/VERIFICATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">hardware validation record</a> for setup and the checks still in progress.",
+        "id": "home_eyes_paragraph_2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Prepare your Watcher and Muse account",
+        "expanded": true,
+        "id": "home_eyes_step_1",
+        "indent": 0,
+        "title": "Prepare your Watcher and Muse account",
+        "type": "step"
+      },
+      {
+        "content": "One SenseCAP Watcher with its existing Himax camera firmware. Choose either enclosure (W1-A clear / W1-B white); one Watcher is enough. The two BOM rows are alternatives.",
+        "id": "home_eyes_bullet_1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The Muse phone app, signed in to your Muse account, with Bluetooth available for pairing.",
+        "id": "home_eyes_bullet_2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Your own Muse SDK token, created at <a href=\"https://gadgets.muse.ai/settings/sdk-tokens\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a>. Keep it ready for the page's token prompt.",
+        "id": "home_eyes_bullet_3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A 2.4 GHz home Wi-Fi network and its password.",
+        "id": "home_eyes_bullet_4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A USB data cable, a desktop computer running Chrome or Edge, and USB power for long watches.",
+        "id": "home_eyes_bullet_5",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Before the first firmware change, save this unit's full flash and unique factory partition using the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/home-eyes/projects/home-eyes/README.md#set-up\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">project setup guide</a>. Keep both backups with that Watcher. Position its camera facing the scene you want to check.",
+        "id": "home_eyes_paragraph_3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Flash Home Eyes and provision your token",
+        "expanded": true,
+        "id": "home_eyes_step_2",
+        "indent": 0,
+        "title": "Flash Home Eyes and provision your token",
+        "type": "step"
+      },
+      {
+        "content": "Connect the Watcher to the computer with the USB data cable. Use the firmware tool below and select the Watcher's ESP32-S3 / XIAO console port. This private draft is awaiting its firmware attachment; flashing becomes available when the release is attached.",
+        "id": "home_eyes_paragraph_4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "id": "home_eyes_flash_firmware",
+        "type": "flash-firmware",
+        "config": {
+          "device_id": "113991315",
+          "device_type": "37",
+          "flash_mode": "bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
+          "firmware_name": "muse-gadget.bin",
+          "firmware_size": "2297856",
+          "flash_address": "0x0",
+          "muse_gadget": true,
+          "full_flash": false
+        }
+      },
+      {
+        "content": "When writing finishes and the page closes the port, unplug and replug the Watcher's USB cable as prompted. Then enter your own SDK token in the page's Muse token field and use its send action. Complete this token step before pairing.",
+        "id": "home_eyes_paragraph_5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Pair the Watcher in the Muse app",
+        "expanded": true,
+        "id": "home_eyes_step_3",
+        "indent": 0,
+        "title": "Pair the Watcher in the Muse app",
+        "type": "step"
+      },
+      {
+        "content": "Keep your phone near the Watcher with Bluetooth on. In Muse, open Settings &gt; Devices, enable Developer mode, and tap Add Device. Select the nearby MuseGadget-... name that matches the Watcher. Press the Watcher's wheel when the app asks for confirmation, then choose your 2.4 GHz home Wi-Fi and enter its password.",
+        "id": "home_eyes_paragraph_6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Wait until Muse shows the device as connected and its face appears on the Watcher. Keep the Watcher connected to that Wi-Fi; your phone can be elsewhere once setup is complete.",
+        "id": "home_eyes_paragraph_7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the Home Eyes skill once",
+        "expanded": true,
+        "id": "home_eyes_step_4",
+        "indent": 0,
+        "title": "Install the Home Eyes skill once",
+        "type": "step"
+      },
+      {
+        "content": "Open the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/home-eyes/projects/home-eyes/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">full Home Eyes SKILL.md</a>, copy its entire contents into your Muse chat, and ask: \"Please remember and use this Home Eyes skill with my paired SenseCAP Watcher.\"",
+        "id": "home_eyes_paragraph_8",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Do this once before trying the requests below. Send the full skill again whenever it changes. It tells Muse how to use the Watcher commands and handle change, message-read, and alert-acknowledgement events.",
+        "id": "home_eyes_paragraph_9",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Try a photo, a watch, and a family message",
+        "expanded": true,
+        "id": "home_eyes_step_5",
+        "indent": 0,
+        "title": "Try a photo, a watch, and a family message",
+        "type": "step"
+      },
+      {
+        "content": "Say: \"Look at the kitchen. Does the stove appear off?\" Muse requests a photo and answers from what is visible. Follow up with a direct check whenever safety matters.",
+        "id": "home_eyes_bullet_6",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"Watch the doorway every two minutes with low sensitivity. Has a parcel arrived?\" Muse inspects the initial scene, then starts one periodic watch. The Watcher shows its watch name and countdown. After a detected change, the skill asks Muse to inspect a photo and return a verdict. This complete change-to-verdict path still needs hardware validation.",
+        "id": "home_eyes_bullet_7",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"Tell the kids I'll be home in 20 minutes, from Mom.\" Muse queues a screen message. Someone at home presses the wheel to acknowledge the card, and a later event lets Muse report that it was seen. Acceptance confirms that the message was queued; the read event confirms acknowledgement.",
+        "id": "home_eyes_bullet_8",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Say: \"What are you watching?\" to check the watch, or \"Stop watching\" to end its checks. Existing cards remain available for acknowledgement after a stop.",
+        "id": "home_eyes_bullet_9",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The implemented card behavior uses a chime for a verdict or message. An alert takes priority, shows a red ring, and repeats a tone every five seconds until someone presses the wheel. A wheel press acknowledges the visible card; normal talk and camera gestures resume after dismissal. Replies from Muse are text; device sounds are tones. Alarm timing and the full alert path remain hardware checks.",
+        "id": "home_eyes_paragraph_10",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Review the operating limits",
+        "expanded": true,
+        "id": "home_eyes_step_6",
+        "indent": 0,
+        "title": "Review the operating limits",
+        "type": "step"
+      },
+      {
+        "content": "Home Eyes supports one fixed-scene watch and one unseen message at a time. Choose a visible target and a concrete question; check intervals range from 2 to 120 minutes, with a 10-minute default. Lighting, reflections, movement, and obstructions affect comparisons. Starting a watch or rebooting establishes a new reference. Checks wait for Muse's verdict, and alerts pause checks until a wheel acknowledgement. A timed end needs a synchronized clock.",
+        "id": "home_eyes_paragraph_11",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Events can be delayed, repeated around reboot, or lost under offline queue pressure. Ask Muse for watch status when a reply or update is missing. Capture and save errors are included in that status. USB power is recommended for unattended use; battery runtime and sleep behavior still need measurement.",
+        "id": "home_eyes_paragraph_12",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Photos requested by Muse travel through your own paired Muse. Photos and comparison thumbnails stay out of flash and SD storage; thumbnails stay in RAM. Settings and message/verdict text are saved on the Watcher. Account-side photo retention follows your Muse settings. Use visual monitoring as an attention aid and confirm safety-critical conditions directly.",
+        "id": "home_eyes_paragraph_13",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The validation record reports pairing, a remote photo, a message card with wheel acknowledgement and a Muse read event, and watch startup on one Watcher. A later fixed-build run lasted about five minutes across two checks, with successful status replies and uninterrupted chat. A one-hour run, the complete change-to-verdict cycle, reboot recovery, long-card scrolling, alarm/reminder timing, and battery behavior remain pending. The uploaded release also needs a fresh test through this Hub page before it is ready for unattended use.",
+        "id": "home_eyes_paragraph_14",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "bom": {
+    "materials": [
+      {
+        "id": "113991315",
+        "name": "SenseCAP Watcher Clear Enclosure",
+        "quantity": "1",
+        "note": "Runs Home Eyes with its onboard camera and display; choose either enclosure (W1-A clear / W1-B white); one Watcher is enough.",
+        "buy_url": "https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html?___store=retailer"
+      },
+      {
+        "id": "113991275",
+        "name": "SenseCAP Watcher White Enclosure",
+        "quantity": "1",
+        "note": "Alternative white-enclosure Watcher for Home Eyes; choose either enclosure (W1-A clear / W1-B white); one Watcher is enough.",
+        "buy_url": "https://www.seeedstudio.com/SenseCAP-Watcher-W1-B-p-5980.html?___store=retailer"
+      }
+    ]
+  },
+  "sync": {
+    "local_revision": 2,
+    "last_pushed_revision": 2,
+    "last_pushed_at": "2026-11-05T05:50:31Z",
+    "last_pushed_hash": "4d05988085fefc509eb9de1166b7dbeebd8cb98be788d711d7ef2c534b29dd46"
+  }
+}
