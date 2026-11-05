@@ -98,7 +98,7 @@
         "type": "step"
       },
       {
-        "content": "Connect the E1001's console USB to your computer and use the firmware tool below to select its USB port and install Care Board. Keep the cable connected. After the write, press the device's Reset button when the page asks, and enter <strong>your own Muse SDK token</strong> at the page's token prompt. Follow the page's provisioning instructions; the token connects the gadget to your Muse account.",
+        "content": "Connect the E1001's console USB to your computer with a USB data cable and use the firmware tool below to install Care Board. When the write finishes, restart the E1001 (press its reset button, or switch it off and on) so it leaves flashing mode. Then enter your own Muse SDK token when the page asks; the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p5",
         "indent": 0,
         "type": "paragraph"
@@ -254,9 +254,9 @@
     ]
   },
   "sync": {
-    "local_revision": 3,
+    "local_revision": 4,
     "last_pushed_revision": 3,
     "last_pushed_at": "2026-11-05T06:01:57Z",
-    "last_pushed_hash": "32a3e860b08bb809dcd2508ef09633e3e69ad9939446f1d3291f76ad5520b757"
+    "last_pushed_hash": "sha256:1c3896b80ffd648848cdf77ad9eccbfd790f0434cec20e7bf2bd76611707cfc1"
   }
 }
