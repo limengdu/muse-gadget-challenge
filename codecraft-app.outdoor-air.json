@@ -98,8 +98,8 @@
           "device_id": "114993068",
           "device_type": "59",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-outdoor-air-81cdb80.bin",
+          "firmware_name": "muse-gadget-outdoor-air-81cdb80.bin",
           "firmware_size": "1773568",
           "flash_address": "0x0",
           "muse_gadget": true,
@@ -212,9 +212,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:27Z",
-    "last_pushed_hash": "0fe901bcfddb68ca75ab43a57b964f396a357c073876c096d9e160d60aa8ca11"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:01:58Z",
+    "last_pushed_hash": "a93352fc2544fd68098cf6221f24e430eaa4f2ccc2b30fd1f2fb7f06e5a9be32"
   }
 }
