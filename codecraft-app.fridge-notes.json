@@ -98,8 +98,8 @@
           "device_id": "100056818",
           "device_type": "61",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-fridge-notes-a8334df.bin",
+          "firmware_name": "muse-gadget-fridge-notes-a8334df.bin",
           "firmware_size": "2691072",
           "flash_address": "0x0",
           "muse_gadget": true,
@@ -281,9 +281,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:42Z",
-    "last_pushed_hash": "60ae3d41fb5adb4144b4d7909d36057441b1079408f3d574aeb43ff862c0c3f1"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:02:02Z",
+    "last_pushed_hash": "5f2dc7a62b87b3326294d07b59a8d49e7863462fbe75e2b10038511a0bf384b3"
   }
 }
