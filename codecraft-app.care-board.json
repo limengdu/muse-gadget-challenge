@@ -110,8 +110,8 @@
           "device_id": "100073581",
           "device_type": "58",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-care-board-4dda0ae.bin",
+          "firmware_name": "muse-gadget-care-board-4dda0ae.bin",
           "firmware_size": "1708032",
           "flash_address": "0x90000",
           "muse_gadget": true,
@@ -254,9 +254,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:23Z",
-    "last_pushed_hash": "0e7d2d5d1d744d0b1ecf65d680c31dce8b9030e426f47e6bf6a857ff09021e22"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:01:57Z",
+    "last_pushed_hash": "32a3e860b08bb809dcd2508ef09633e3e69ad9939446f1d3291f76ad5520b757"
   }
 }
