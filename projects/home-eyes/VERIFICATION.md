@@ -386,3 +386,7 @@ python3 -m unittest discover -s tests -p 'test_home_eyes.py'
 Result: 5 tests passed, including state restoration and production command
 registration. Firmware linking, app size and device behavior remain part of
 the device acceptance checks above.
+
+## CodeCraft Hub draft flash (2026-11-05)
+
+The uploaded release `muse-gadget-home-eyes-89dd206.bin` (token-free, built from `89dd206`) was flashed from the draft page of Hub app 13466 onto one SenseCAP Watcher. After a reset the board started normally and the owner's device checks passed. Hub writes the application image only, so the token and pairing already stored on the board carried over. The draft page showed no reset or token prompt ([sensecraft-cli#6](https://github.com/Seeed-Solution/sensecraft-cli/issues/6)).
