@@ -1,0 +1,289 @@
+{
+  "manifest_version": 1,
+  "identity": {
+    "app_id": "13471",
+    "remote_type": "Global",
+    "org_id": "424326273238784",
+    "account": null,
+    "created_at": "2026-11-05T04:18:32Z"
+  },
+  "info": {
+    "app_name": "Fridge Notes",
+    "excerpt": "Keep shopping, chores, to-do and notes lists on a reTerminal Sticky fridge display. Families and makers with a Muse account can add items through Muse and see what still needs doing.",
+    "scene": "2",
+    "license": "Apache-2.0",
+    "author": "",
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "activity_id": null
+  },
+  "images": [
+    {
+      "path": "projects/fridge-notes/media/hub-cover.jpg",
+      "sha256": "c9418a44c11038cd733bf31371a420b87711570cb5f00c8403f0e1f68ef22515",
+      "file_url": "https://sensecraft-statics.seeed.cc/refer/pic/1793857838091_olvrT5_hub-cover.jpg",
+      "role": "cover"
+    }
+  ],
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Fridge Notes provides up to four household lists with twenty items each, quantities in item text and optional responsibility names. Lists are stored on the Sticky, with a Muse VM mirror implemented for reading the last uploaded snapshot.",
+        "id": "p1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "This experimental project has been checked on one Sticky for creating lists, adding and reading Shopping items, and marking an item done. Touch, voice input, VM mirroring and sleep/wake still await on-device checks. Explore the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/fridge-notes/projects/fridge-notes\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source</a>, <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/fridge-notes/projects/fridge-notes/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">SKILL.md</a> and <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/fridge-notes/projects/fridge-notes/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">verification notes</a>.",
+        "id": "p2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Prepare your device and accounts",
+        "expanded": true,
+        "id": "s1",
+        "indent": 0,
+        "title": "Prepare your device and accounts",
+        "type": "step"
+      },
+      {
+        "content": "Have a reTerminal Sticky, charged or powered over USB, and a USB-C data cable.",
+        "id": "b1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Use a desktop computer with Chrome or Edge for the firmware tool, and a phone with Bluetooth and the Muse app signed in to your Muse account.",
+        "id": "b2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Have your 2.4 GHz Wi-Fi name and password ready.",
+        "id": "b3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Sign in at <a href=\"https://gadgets.muse.ai/settings/sdk-tokens\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a>, open Account &gt; SDK tokens and create your own Muse SDK token. Keep it ready for the page's token prompt.",
+        "id": "b4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Flash Fridge Notes",
+        "expanded": true,
+        "id": "s2",
+        "indent": 0,
+        "title": "Flash Fridge Notes",
+        "type": "step"
+      },
+      {
+        "content": "Connect the Sticky's USB-C console port with the data cable. Use the firmware tool below and select your Sticky's CH343 USB port. Enter your own Muse SDK token when the page asks. Follow the page's hard-reset prompt after writing, and allow the USB port to become idle before token provisioning. After setup completes, continue with Muse pairing.",
+        "id": "p3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Firmware attachment is pending in this private draft. This tool becomes usable after the reviewer attaches the release image.",
+        "id": "p4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "id": "flash_fridge_notes",
+        "type": "flash-firmware",
+        "config": {
+          "device_id": "100056818",
+          "device_type": "61",
+          "flash_mode": "bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
+          "firmware_name": "muse-gadget.bin",
+          "firmware_size": "2691072",
+          "flash_address": "0x0",
+          "muse_gadget": true,
+          "full_flash": false
+        }
+      },
+      {
+        "content": "Pair with Muse",
+        "expanded": true,
+        "id": "s3",
+        "indent": 0,
+        "title": "Pair with Muse",
+        "type": "step"
+      },
+      {
+        "content": "Keep your phone near the Sticky with Bluetooth on. In the Muse app, open Settings &gt; Devices, enable Developer mode and tap Add Device (+). Select the nearby MuseGadget-... or MuseGadget-Disp-... matching your Sticky. Press the Sticky's AI button when Muse asks for confirmation, choose your 2.4 GHz Wi-Fi and enter its password. Wait until Muse shows the device as connected. These are the pairing controls described in the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/fridge-notes/projects/fridge-notes/README.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">project README</a>.",
+        "id": "p5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the skill once",
+        "expanded": true,
+        "id": "s4",
+        "indent": 0,
+        "title": "Install the skill once",
+        "type": "step"
+      },
+      {
+        "content": "Open <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/fridge-notes/projects/fridge-notes/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">SKILL.md</a>, copy its complete contents into your Muse chat and ask Muse to remember it as the Fridge Notes skill. Install it once for your Muse, then send the full file again whenever the skill changes.",
+        "id": "p6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Makers with this repository checked out can also send the full file over the full-UI board's USB chat helper. Run the following from esp32/, then ask Muse to remember the skill in chat:",
+        "id": "p7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "config": {
+          "lang": "sh"
+        },
+        "content": "python3 tools/muse/chat.py --file ../projects/fridge-notes/SKILL.md",
+        "id": "c1",
+        "indent": 0,
+        "type": "code"
+      },
+      {
+        "content": "In Muse chat, say: \"Create Shopping, Chores, To-do and Notes on the fridge.\" The first created list becomes the home page. Ask Muse to set the device clock to the current UTC time and your local UTC offset in minutes for the sync-time label; update the offset when daylight saving changes.",
+        "id": "p8",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Try your household lists",
+        "expanded": true,
+        "id": "s5",
+        "indent": 0,
+        "title": "Try your household lists",
+        "type": "step"
+      },
+      {
+        "content": "Start with typed requests in Muse chat and check the displayed list after each change:",
+        "id": "p9",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "\"Add eggs and milk to Shopping.\" adds two shopping items.",
+        "id": "b5",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"What is on my shopping list?\" reads the items and their completion state.",
+        "id": "b6",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"Mark the eggs done.\" marks Eggs complete while Milk stays open.",
+        "id": "b7",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"Add two cartons of milk and 500 grams of tomatoes.\" keeps quantities in the item text.",
+        "id": "b8",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"Add Saturday cleanup to chores for Leo.\" assigns that chore to Leo.",
+        "id": "b9",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"What's left on the fridge list?\" reads incomplete items, including quantities and responsible people.",
+        "id": "b10",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "\"Clear the completed chores.\" removes completed rows from Chores.",
+        "id": "b11",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The first three actions match the recorded device checks. Quantity handling, assignment and cleanup are implemented and described in the skill; they still need device checks. For the implemented voice path, hold the AI button, speak and release; Muse is intended to update the list and show a short text reply. Voice-to-list operation awaits hardware verification.",
+        "id": "p10",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The list interface provides row taps to tick or untick, tabs or horizontal swipes to change lists, vertical swipes or Previous/Next for long lists, and Clear done for completed rows. Up/Down wake the device. Touch and sleep/wake behaviour still need hardware verification for this application.",
+        "id": "p11",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Understand limits and verification status",
+        "expanded": true,
+        "id": "s6",
+        "indent": 0,
+        "title": "Understand limits and verification status",
+        "type": "step"
+      },
+      {
+        "content": "Capacity is four lists with twenty items per list. Item text is a single line of up to 127 UTF-8 bytes; list titles and responsibility names are up to 31 bytes. Multibyte characters use more than one byte. Keep notes concise; a full storage area can reject an edit.",
+        "id": "b12",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The device stores lists locally across restarts. This persistence is covered by host tests; reboot restoration and storage capacity near the limits await hardware checks.",
+        "id": "b13",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Mirroring writes to gadget/fridge-notes/lists.json in your Muse VM, about three seconds after edits settle, with offline retries after thirty seconds. While Sticky sleeps, Muse can use only the latest successfully uploaded snapshot; it can lag behind offline changes. Device edits require the Sticky to be reachable. Live mirror uploads, touch notifications and asleep reads await hardware checks.",
+        "id": "b14",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Replies are text on the screen; Sticky has no speaker. E-paper keeps the last image visible during sleep or power loss. Everyone near the fridge can see it, and list text and names also reach your Muse VM and chat. Use ordinary household notes.",
+        "id": "b15",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Calendar alarms and scheduled reviews use separately agreed Muse routines. Agree the time, timezone and cleanup scope with Muse when setting one up.",
+        "id": "b16",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/fridge-notes/projects/fridge-notes/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">2026-11-04 verification record</a> covers one factory Sticky and the list creation, add, read and completion checks above. The release image and this Hub draft's flash path still need their own device verification. Pairing/reconnect, Wi-Fi entry, full touch navigation, voice replies, mirroring, reboot persistence and battery behaviour remain checks for the final image.",
+        "id": "p12",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "bom": {
+    "materials": [
+      {
+        "id": "100056818",
+        "name": "reTerminal Sticky",
+        "quantity": "1",
+        "buy_url": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html?___store=retailer",
+        "note": "Runs Fridge Notes and displays shared household lists with checkboxes."
+      }
+    ]
+  },
+  "sync": {
+    "local_revision": 2,
+    "last_pushed_revision": 2,
+    "last_pushed_at": "2026-11-05T05:50:42Z",
+    "last_pushed_hash": "60ae3d41fb5adb4144b4d7909d36057441b1079408f3d574aeb43ff862c0c3f1"
+  }
+}
