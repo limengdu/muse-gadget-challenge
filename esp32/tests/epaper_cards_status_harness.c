@@ -31,7 +31,13 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t h, TickType_t wait) {(void)h;return 
 BaseType_t xSemaphoreGive(SemaphoreHandle_t h) {(void)h;return pdTRUE;}
 BaseType_t xTaskCreate(TaskFunction_t task, const char *name, unsigned stack,
                        void *arg, unsigned priority, TaskHandle_t *out) {
-    (void)task;(void)name;(void)stack;(void)arg;(void)priority; if(out)*out=(void *)1;return pdPASS;
+    (void)task;(void)name;(void)arg;(void)priority;
+#if CONFIG_HOMEHUB_KID_BOARD
+    assert(stack==4096);
+#else
+    assert(stack==3072);
+#endif
+    if(out)*out=(void *)1;return pdPASS;
 }
 void xTaskNotifyGive(TaskHandle_t h) {(void)h;notifications++;}
 uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks) {

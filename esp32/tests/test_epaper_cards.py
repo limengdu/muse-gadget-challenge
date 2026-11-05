@@ -72,9 +72,12 @@ class EpaperCards(unittest.TestCase):
 
             sources = [ROOT / "tests/epaper_cards_status_harness.c"] + [
                 ROOT / "main" / name for name in ("epaper_cards.c", "card_mask.c", "card_fonts.c", "card_icons.c")]
-            binary = compile_host(out, sources, flags=["-I", str(ROOT / "avatar")])
-            result = run_host(binary)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for kid in (0, 1):
+                with self.subTest(kid=kid):
+                    binary = compile_host(out, sources, flags=["-I", str(ROOT / "avatar"),
+                                                              f"-DCONFIG_HOMEHUB_KID_BOARD={kid}"])
+                    result = run_host(binary)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_assets_are_conditional(self):
         cmake = (ROOT / "main/CMakeLists.txt").read_text()

@@ -58,9 +58,12 @@ void kid_model_date(int64_t now, int offset, char out[11]);
 // 将命令应用于调用方持有的候选模型；changed 表示存储内容是否变化。
 bool kid_model_command(kid_model_t *model, const char *command, const cJSON *params,
                         int64_t now, int offset, bool *changed, const char **error);
-// Returns the earliest unfinished item for the active local date, or -1.
-// 返回当前本地日期中最早未完成的条目；无可选条目时返回 -1。
+// Returns the latest due unfinished step, otherwise the next step today, or -1.
+// 返回今天最近到时的未完成步骤，否则返回下一步；无可选步骤时返回 -1。
 int kid_model_current(const kid_model_t *model, int64_t now, int offset);
+// Returns the next visible item/date boundary in UTC, or zero without a clock.
+// 返回下一次可见条目或日期变化的 UTC 时刻；时钟无效时返回零。
+int64_t kid_model_next_change(const kid_model_t *model, int64_t now, int offset);
 bool kid_model_rollover(kid_model_t *model, int64_t now, int offset);
 bool kid_model_green(kid_model_t *model, int64_t now, int offset, const kid_hooks_t *hooks);
 cJSON *kid_model_json(const kid_model_t *model, int64_t now, int offset);

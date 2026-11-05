@@ -44,11 +44,16 @@ static SemaphoreHandle_t s_lock;
 static QueueHandle_t s_jobs;
 static TaskHandle_t s_task;
 static bool (*s_keys_ready)(void);
-static atomic_bool s_clock_dirty, s_render_pending, s_rendered;
-static atomic_llong s_render_at;
+static atomic_bool s_clock_dirty, s_render_pending, s_rendered, s_render_ok;
+static atomic_llong s_render_at, s_render_day;
+static atomic_int s_render_current;
+static atomic_uint s_render_revision;
+static unsigned s_revision;
 static kid_refresh_t s_refresh;
 static bool s_storage_ok = true, s_rtc_ok, s_key_seen;
-static int64_t s_last_key_us, s_retry_at, s_visible_minute = -1;
+static int64_t s_last_key_us, s_retry_at;
+static int64_t s_visible_day = -1;
+static int s_visible_current = -1;
 
 static bool keys_ready(void) { return s_task && s_keys_ready && s_keys_ready(); }
 void kid_board_notify(void) { if (s_task) xTaskNotifyGive(s_task); }
@@ -61,15 +66,36 @@ static cJSON *error_result(const char *code, const char *message) {
     cJSON_AddStringToObject(error, "message", message); cJSON_AddItemToObject(root, "error", error); return root;
 }
 
-static kid_model_t *clone_model(void) {
+// Copies the model and its revision while holding the display snapshot lock.
+// 在显示快照锁内复制模型及其版本号。
+static kid_model_t *clone_model(unsigned *revision) {
     kid_model_t *m = kid_memory_alloc(sizeof(*m));
-    if (m) { xSemaphoreTake(s_lock, portMAX_DELAY); *m = *s_model; xSemaphoreGive(s_lock); }
+    if (m) {
+        xSemaphoreTake(s_lock, portMAX_DELAY); *m = *s_model;
+        if (revision) *revision = s_revision;
+        xSemaphoreGive(s_lock);
+    }
     return m;
 }
 
-static void publish(kid_model_t *m) {
-    xSemaphoreTake(s_lock, portMAX_DELAY); kid_model_t *old = s_model; s_model = m;
-    xSemaphoreGive(s_lock); free(old); kid_refresh_request(&s_refresh);
+static int64_t visible_day(int64_t now, int offset) {
+    return kid_model_clock_valid(now) ? (now + offset * 60LL) / 86400 : -1;
+}
+
+static void remember_visible(void) {
+    int64_t now = gadget_clock_epoch(); int offset = gadget_clock_offset_minutes();
+    s_visible_day = visible_day(now, offset);
+    s_visible_current = kid_model_current(s_model, now, offset);
+}
+
+static void request_redraw(const char *reason) {
+    kid_refresh_request(&s_refresh);
+    ESP_LOGI(TAG, "redraw request reason=%s at=%" PRId64, reason, gadget_clock_epoch());
+}
+
+static void publish(kid_model_t *m, const char *reason) {
+    xSemaphoreTake(s_lock, portMAX_DELAY); kid_model_t *old = s_model; s_model = m; s_revision++;
+    xSemaphoreGive(s_lock); free(old); remember_visible(); request_redraw(reason);
 }
 
 static cJSON *state_result(void) {
@@ -88,12 +114,21 @@ static bool post_event(const char *summary, const cJSON *data) {
 }
 static const kid_hooks_t s_hooks = {.event = post_event, .chime = reterminal_io_chime};
 
-// Records the actual render start so queued panel work shares the refresh window.
-// 记录实际绘图开始时刻，使面板队列中的工作共用刷新时间窗口。
+// Records the actual start time of a queued panel render.
+// 记录排队绘图的实际开始时间。
 static void render(epaper_cards_canvas_t *canvas, void *ctx) {
     (void)ctx;
-    kid_model_t *m = clone_model();
-    if (m) { kid_model_render(canvas, m, gadget_clock_epoch(), gadget_clock_offset_minutes()); free(m); }
+    unsigned revision = 0;
+    kid_model_t *m = clone_model(&revision);
+    bool rendered = m != NULL;
+    int64_t now = gadget_clock_epoch(); int offset = gadget_clock_offset_minutes();
+    if (m) {
+        kid_model_render(canvas, m, now, offset);
+        atomic_store(&s_render_day, visible_day(now, offset));
+        atomic_store(&s_render_current, kid_model_current(m, now, offset));
+        atomic_store(&s_render_revision, revision); free(m);
+    }
+    atomic_store(&s_render_ok, rendered);
     atomic_store(&s_render_at, esp_timer_get_time()); atomic_store(&s_rendered, true);
     atomic_store(&s_render_pending, false); kid_board_notify();
 }
@@ -126,10 +161,10 @@ cJSON *kid_board_command(const char *command, const cJSON *params,
 }
 
 static void rollover(void) {
-    kid_model_t *m = clone_model();
+    kid_model_t *m = clone_model(NULL);
     if (!m) return;
     if (kid_model_rollover(m, gadget_clock_epoch(), gadget_clock_offset_minutes())) {
-        s_storage_ok = kid_store_save(m); publish(m);
+        s_storage_ok = kid_store_save(m); publish(m, "date");
     } else free(m);
 }
 
@@ -141,14 +176,14 @@ static void process_job(kid_job_t *job) {
             result = error_result("invalid_params", error);
         else result = state_result();
     } else {
-        kid_model_t *m = clone_model();
+        kid_model_t *m = clone_model(NULL);
         if (!m) result = error_result("out_of_memory", "Could not copy kid state");
         else if (job->key) {
             int64_t us = esp_timer_get_time();
             if (keys_ready() && (!s_key_seen || us - s_last_key_us >= 2000000)
                 && kid_model_green(m, gadget_clock_epoch(), gadget_clock_offset_minutes(), &s_hooks)) {
                 s_key_seen = true; s_last_key_us = us;
-                s_storage_ok = kid_store_save(m); publish(m); m = NULL;
+                s_storage_ok = kid_store_save(m); publish(m, "key"); m = NULL;
             }
             free(m);
         } else {
@@ -157,15 +192,15 @@ static void process_job(kid_job_t *job) {
                 result = error_result("invalid_params", error); free(m);
             } else if (!changed) { free(m); result = state_result(); }
             else if (!kid_store_save(m)) { free(m); result = error_result("storage_failed", "Could not save kid state"); }
-            else { s_storage_ok = true; publish(m); result = state_result(); }
+            else { s_storage_ok = true; publish(m, job->command); result = state_result(); }
         }
     }
     cJSON_Delete(job->params);
     if (!job->key) noise_ctrl_send_command_result(job->generation, job->id, result);
 }
 
-// Waits for commands, minute boundaries, storage retries and the next permitted draw.
-// 等待命令、分钟边界、存储重试以及下次允许绘图的时刻。
+// Waits for commands, visible item/date boundaries, storage retries and drawing.
+// 等待命令、可见条目或日期边界、存储重试及绘图。
 static void kid_task(void *arg) {
     (void)arg;
     for (;;) {
@@ -175,14 +210,22 @@ static void kid_task(void *arg) {
         for (unsigned i = 0; i < 8 && xQueueReceive(s_jobs, &job, 0) == pdTRUE; i++) process_job(&job);
         int64_t us = esp_timer_get_time(), now = gadget_clock_epoch();
         if (!s_storage_ok && us >= s_retry_at) { s_storage_ok = kid_store_save(s_model); s_retry_at = us + KID_REFRESH_US; }
-        if (s_model->active && s_visible_minute != (gadget_clock_valid() ? now / 60 : -1)) {
-            s_visible_minute = gadget_clock_valid() ? now / 60 : -1; kid_refresh_request(&s_refresh);
+        if (s_model->active) {
+            int64_t day = visible_day(now, gadget_clock_offset_minutes());
+            int current = kid_model_current(s_model, now, gadget_clock_offset_minutes());
+            bool date_changed = day != s_visible_day;
+            if (date_changed || current != s_visible_current) {
+                remember_visible(); request_redraw(date_changed ? "date" : "current");
+            }
         }
         if (atomic_exchange(&s_rendered, false)) {
-            bool dirty = s_refresh.dirty;
-            kid_refresh_started(&s_refresh, atomic_load(&s_render_at)); s_refresh.dirty = dirty;
+            kid_refresh_started(&s_refresh, atomic_load(&s_render_at));
+            s_refresh.dirty = !atomic_load(&s_render_ok) || s_revision != atomic_load(&s_render_revision)
+                || s_visible_day != atomic_load(&s_render_day)
+                || s_visible_current != atomic_load(&s_render_current);
         }
-        int64_t wait_us = gadget_clock_valid() && s_model->active ? (60 - now % 60) * 1000000LL : -1;
+        int64_t next = kid_model_next_change(s_model, now, gadget_clock_offset_minutes());
+        int64_t wait_us = next > now ? (next - now) * 1000000LL : -1;
         if (keys_ready() && s_model->active && !atomic_load(&s_render_pending)) {
             int64_t draw_wait = kid_refresh_wait(&s_refresh, us);
             if (draw_wait == 0) {
@@ -208,10 +251,10 @@ bool kid_board_init(bool (*ready)(void)) {
     s_model = kid_memory_alloc(sizeof(*s_model));
     if (!s_lock || !s_jobs || !s_model) return false;
     kid_model_init(s_model); kid_store_load(s_model);
-    if (s_model->active) kid_refresh_request(&s_refresh);
     if (!reterminal_io_init(keys_ready, key_received)) ESP_LOGW(TAG, "Some reTerminal IO is unavailable");
     int64_t rtc; s_rtc_ok = reterminal_io_rtc_read(&rtc);
     if (!gadget_clock_valid() && s_rtc_ok) gadget_clock_restore_utc(rtc);
+    if (s_model->active) { remember_visible(); request_redraw("restore"); }
     if (xTaskCreate(kid_task, "kid_board", 12288, NULL, 3, &s_task) != pdPASS) return false;
     gadget_clock_set_change_cb(clock_changed); if (gadget_clock_valid()) clock_changed(); return true;
 }

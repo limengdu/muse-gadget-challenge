@@ -60,7 +60,7 @@ The supplied skill describes these rules and an evening/weekly review.
 
 | Control | Action after setup |
 |---|---|
-| Green, short press | Confirm the earliest unfinished step whose time has arrived; otherwise confirm the next step today |
+| Green, short press | Confirm the highlighted step: the latest due unfinished step, otherwise the next step today |
 | Green, pairing | Confirm pairing; the Kid Board action becomes available once setup and pairing confirmation finish |
 | Green, five-second hold | Reset device setup through the existing SDK flow |
 | White keys | The timeline remains on screen |
@@ -72,18 +72,23 @@ and reports it to the owner. A failed event enqueue leaves the step ready for
 another press. Accepted Green presses have a two-second guard. Stars come from
 the parent's agreement; a key confirmation changes the step only.
 
-The header shows the child, today's weekday/date, local clock and plan date.
+The header shows the child, today's weekday/date and plan date.
 Up to ten cards occupy two rows. Yellow and a larger icon identify the current
-step; completed cards carry green checks. The bottom holds up to twenty stars,
+step; completed cards carry green checks. The highlight follows the latest due
+unfinished step, or the next step today when none is due. Simultaneous steps
+retain the parent's order. The bottom holds up to twenty stars,
 the total and goal, reward and one-line parent note. `count >= goal` shows
 “Reward earned!”. Long text is fitted or ends with an ellipsis.
 
 Six-colour panel refresh takes about 30 seconds. Changes take effect in state
 immediately after persistence; drawing requests merge and panel redraw starts
 are at least 60 seconds apart. The first update after an idle window can draw
-immediately. While active, the clock requests a minute update through the same
-window. A command that leaves stored content unchanged schedules no redraw and
-writes no NVS data. The visible picture and time can lag during refresh.
+immediately. Updates follow schedule/stars/note edits, completion changes, a
+change of the highlighted step and the local date. The worker sleeps until the
+next actual step/date boundary, a command/key, a clock correction or a pending
+storage/drawing retry. The header retains its weekday and date between content
+changes. A command that leaves stored content unchanged schedules no redraw and
+writes no NVS data. The visible picture can lag during a panel refresh.
 
 ## Commands and limits
 

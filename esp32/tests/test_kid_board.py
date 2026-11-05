@@ -64,6 +64,9 @@ unsigned uxQueueMessagesWaiting(QueueHandle_t);
     def test_green_key_event_and_star_goal(self): self.run_case("keys")
     def test_nvs_round_trip_and_corruption(self): self.run_case("store")
     def test_refresh_window(self): self.run_case("refresh")
+    def test_full_hour_redraws_only_at_item_boundaries(self): self.run_case("hour")
+    def test_minute_ticks_and_noops_leave_pixels_unchanged(self): self.run_case("minute")
+    def test_midnight_requests_one_redraw(self): self.run_case("midnight")
     def test_async_queue_nvs_and_refresh_coalescing(self):
         result = self.run_case("controller")
         logs = "\n".join(line for line in result.stdout.splitlines() if line.startswith("@kid "))

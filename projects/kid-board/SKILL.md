@@ -61,8 +61,10 @@ confirm success from the returned facts. Visible six-colour refresh can take
   `current` (the item or null), `stars` with `goal_reached`, clock validity,
   UTC/local offset, and storage/RTC health. An unknown completion timestamp is 0.
 
-The earliest due unfinished item is current; if none is due, today's next item
-is current. Green confirms that step, gives a short beep and queues `kid.done`.
+The latest due unfinished item is current; if none is due, today's next item
+is current. Equal-time steps retain their input order. The highlight moves at
+actual item boundaries; the header shows the weekday/date and plan date.
+Green confirms that step, gives a short beep and queues `kid.done`.
 A future plan is visible immediately and becomes confirmable on its own date.
 An earlier plan advances at local midnight with fresh completion flags. Stars
 and the reward agreement carry across days. The last plan repeats until replaced.

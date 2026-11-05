@@ -33,6 +33,7 @@ static bool event_fail, show_fail, render_auto = true;
 static epaper_cards_render_cb pending_render;
 static void *pending_ctx;
 static unsigned result_count;
+static unsigned redraw_requests, current_requests, date_requests;
 static int64_t wait_ticks;
 static jmp_buf idle;
 static uint8_t stored[16384];
@@ -58,6 +59,11 @@ bool gadget_events_post_seq(const char *source,const char *text,const cJSON *dat
 void kid_test_log(const char *tag,const char *format,...) {
     assert(!strcmp(tag,"link.kid"));char line[512];va_list args;va_start(args,format);vsnprintf(line,sizeof(line),format,args);va_end(args);
     assert(!strstr(line,"Mia")&&!strstr(line,"Grandpa")&&!strstr(line,"Homework"));
+    if (!strncmp(line,"redraw request reason=",22)) {
+        redraw_requests++;
+        current_requests+=strstr(line,"reason=current ")!=NULL;
+        date_requests+=strstr(line,"reason=date ")!=NULL;
+    }
     printf("@kid %s\n",line);
 }
 static bool direct_event(const char *text,const cJSON *data) {return gadget_events_post("Kid Board",text,data);}
@@ -185,7 +191,11 @@ static void validation(void) {
 static void selection(void) {
     kid_model_t m;kid_model_init(&m);apply(&m,"kid.set_schedule",morning,DAY);
     assert(kid_model_current(&m,0,0)==-1);assert(kid_model_current(&m,DAY+6*3600,0)==0);
-    assert(kid_model_current(&m,DAY+9*3600,0)==0);
+    assert(kid_model_next_change(&m,0,0)==0);
+    assert(kid_model_next_change(&m,DAY+6*3600,0)==DAY+7*3600+5*60);
+    assert(kid_model_next_change(&m,DAY-3600,480)==DAY-3600+5*60);
+    assert(kid_model_current(&m,DAY+9*3600,0)==4);
+    assert(kid_model_next_change(&m,DAY+9*3600,0)==DAY+86400);
     apply(&m,"kid.mark","{\"id\":\"wake\",\"done\":true}",DAY+7*3600);
     assert(kid_model_current(&m,DAY+7*3600,0)==1);
     assert(m.items[0].done_at==DAY+7*3600);
@@ -197,13 +207,16 @@ static void selection(void) {
     apply(&m,"kid.set_schedule",morning,DAY);assert(!m.items[0].done);
     apply(&m,"kid.set_schedule","{\"date\":\"2024-11-05\",\"items\":[{\"id\":\"a\",\"time\":\"07:00\",\"label\":\"Wake\",\"icon\":\"wake\"}]}",DAY);
     assert(kid_model_current(&m,DAY+23*3600,0)==-1);assert(!kid_model_rollover(&m,DAY+23*3600,0));
+    assert(kid_model_next_change(&m,DAY+23*3600,0)==DAY+86400);
     assert(kid_model_current(&m,DAY+86400+7*3600,0)==0);
     assert(kid_model_rollover(&m,DAY+86400+20*3600,480));assert(!strcmp(m.date,"2024-11-06"));
     apply(&m,"kid.set_schedule","{\"items\":[{\"id\":\"late\",\"time\":\"09:00\",\"label\":\"Late\",\"icon\":\"play\"},{\"id\":\"a\",\"time\":\"07:00\",\"label\":\"First\",\"icon\":\"wake\"},{\"id\":\"b\",\"time\":\"07:00\",\"label\":\"Second\",\"icon\":\"shirt\"}]}",DAY);
     assert(!strcmp(m.items[0].id,"a")&&!strcmp(m.items[1].id,"b"));
-    apply(&m,"kid.mark","{\"id\":\"a\",\"done\":true}",DAY);assert(kid_model_current(&m,DAY+10*3600,0)==1);
+    assert(kid_model_current(&m,DAY+10*3600,0)==2);
+    apply(&m,"kid.mark","{\"id\":\"a\",\"done\":true}",DAY);assert(kid_model_current(&m,DAY+7*3600,0)==1);
     apply(&m,"kid.mark","{\"id\":\"b\",\"done\":true}",DAY);assert(kid_model_current(&m,DAY+10*3600,0)==2);
     apply(&m,"kid.mark","{\"id\":\"late\",\"done\":true}",DAY);assert(kid_model_current(&m,DAY+10*3600,0)==-1);
+    assert(kid_model_next_change(&m,DAY+10*3600,0)==DAY+86400);
     apply(&m,"kid.mark","{\"id\":\"b\",\"done\":false}",DAY);assert(!m.items[1].done_at);
 }
 
@@ -219,6 +232,8 @@ static void keys(void) {
     apply(&m,"kid.set_stars","{\"count\":6,\"goal\":5}",DAY);assert(m.count==6);
     for(int i=1;i<5;i++)assert(kid_model_green(&m,DAY+7*3600+i,0,&hooks));
     assert(!kid_model_green(&m,DAY+7*3600+6,0,&hooks)&&posts==5&&m.count==6);
+    apply(&m,"kid.set_schedule",afternoon,DAY);
+    assert(kid_model_green(&m,DAY+16*3600,0,&hooks));assert(m.items[2].done&&!m.items[0].done);
 }
 
 static void persistence(void) {
@@ -266,12 +281,65 @@ static void controller(void) {
     command("kid.set_schedule","{\"child\":\"Changed\",\"items\":[{}]}");assert(!result_ok()&&!strcmp(s_model->child,"Mia"));
     for(int i=0;i<8;i++){cJSON *p=cJSON_CreateObject(),*result=kid_board_command("kid.state",p,"kid-1",1);cJSON_Delete(p);assert(cJSON_IsTrue(cJSON_GetObjectItem(result,"_async")));cJSON_Delete(result);}
     cJSON *p=cJSON_CreateObject(),*busy=kid_board_command("kid.state",p,"kid-1",1);assert(cJSON_IsFalse(cJSON_GetObjectItem(busy,"ok")));cJSON_Delete(busy);cJSON_Delete(p);pump();
-    pump();uptime+=KID_REFRESH_US;clock_epoch+=60;render_auto=false;pump();assert(pending_render);unsigned draws=refreshes;
-    command("kid.set_stars","{\"count\":4,\"goal\":5}");uptime+=2*KID_REFRESH_US;clock_epoch+=120;pump();assert(refreshes==draws);
+    pump();uptime+=KID_REFRESH_US;clock_epoch+=60;render_auto=false;
+    command("kid.set_stars","{\"count\":4,\"goal\":5}");assert(pending_render);unsigned draws=refreshes;
+    command("kid.set_stars","{\"count\":5,\"goal\":5}");uptime+=2*KID_REFRESH_US;clock_epoch+=120;pump();assert(refreshes==draws);
     finish_render();pump();uptime+=KID_REFRESH_US-1;pump();assert(refreshes==draws);
+    assert(!s_refresh.dirty);
+    command("kid.set_stars","{\"count\":6,\"goal\":5}");
     uptime++;show_fail=true;pump();assert(refreshes==draws&&!atomic_load(&s_render_pending));show_fail=false;render_auto=true;pump();assert(refreshes==draws+1);
     clock_epoch=DAY+86400;pump();assert(!s_model->items[0].done&&!strcmp(s_model->date,"2024-11-05"));
     assert(wait_ticks>0);
+}
+
+// Simulates an hour through actual worker sleeps and independent clock notices.
+// 通过实际后台休眠截止点及独立时钟通知模拟一小时。
+static void hour(void) {
+    clock_epoch=DAY+7*3600;assert(kid_board_init(ready));pump();
+    cJSON *p=cJSON_CreateObject(),*items=cJSON_AddArrayToObject(p,"items");
+    cJSON_AddStringToObject(p,"date","2024-11-04");
+    for(int i=0;i<7;i++) {
+        char id[8],at[6];snprintf(id,sizeof(id),"step%d",i);snprintf(at,sizeof(at),"%02d:%02d",7+i/6,i%6*10);
+        cJSON *v=cJSON_CreateObject();cJSON_AddStringToObject(v,"id",id);cJSON_AddStringToObject(v,"time",at);
+        cJSON_AddStringToObject(v,"label","Step");cJSON_AddStringToObject(v,"icon","play");cJSON_AddItemToArray(items,v);
+    }
+    char *json=cJSON_PrintUnformatted(p);assert(json);command("kid.set_schedule",json);free(json);cJSON_Delete(p);pump();
+    assert(redraw_requests==1&&refreshes==1&&wait_ticks==600*configTICK_RATE_HZ);
+    for(int second=1;second<=3600;second++) {
+        clock_epoch++;uptime+=1000000;
+        if(second%60)continue;
+        unsigned before=redraw_requests,draws=refreshes;
+        assert(clock_callback);clock_callback();pump();pump();
+        if(second%600)assert(redraw_requests==before&&refreshes==draws);
+        else assert(redraw_requests==before+1&&refreshes==draws+1);
+        assert(kid_model_current(s_model,clock_epoch,0)==second/600);
+        int64_t until=second<3600?600-second%600:16*3600;
+        assert(wait_ticks==until*configTICK_RATE_HZ);
+    }
+    assert(redraw_requests==7&&refreshes==7&&current_requests==6&&date_requests==0&&writes==1);
+}
+
+static void minute(void) {
+    clock_epoch=DAY+7*3600;assert(kid_board_init(ready));pump();command("kid.set_stars",star_plan);pump();
+    assert(redraw_requests==1&&refreshes==1&&wait_ticks==17*3600*configTICK_RATE_HZ);
+    static uint8_t before[800*480/2],after[800*480/2];epaper_cards_canvas_t c;
+    assert(epaper_cards_canvas(&c,before,sizeof(before),800,480,4));kid_model_render(&c,s_model,clock_epoch,0);
+    for(int i=0;i<60;i++){clock_epoch+=60;uptime+=KID_REFRESH_US;clock_callback();pump();}
+    assert(epaper_cards_canvas(&c,after,sizeof(after),800,480,4));kid_model_render(&c,s_model,clock_epoch,0);
+    assert(!memcmp(before,after,sizeof(before))&&redraw_requests==1&&refreshes==1&&writes==1);
+    command("kid.set_stars",star_plan);command("kid.state","{}");assert(redraw_requests==1&&refreshes==1&&writes==1);
+}
+
+static void midnight(void) {
+    kid_model_t m;kid_model_init(&m);apply(&m,"kid.set_schedule",morning,DAY);
+    for(unsigned i=0;i<m.item_count;i++){m.items[i].done=true;m.items[i].done_at=DAY+8*3600;}
+    assert(kid_store_save(&m));clock_epoch=DAY+86400-60;
+    assert(kid_board_init(ready));pump();pump();assert(redraw_requests==1&&refreshes==1&&wait_ticks==60*configTICK_RATE_HZ);
+    clock_epoch+=60;uptime+=KID_REFRESH_US;pump();pump();
+    assert(redraw_requests==2&&refreshes==2&&date_requests==1&&!strcmp(s_model->date,"2024-11-05"));
+    for(unsigned i=0;i<s_model->item_count;i++)assert(!s_model->items[i].done);
+    assert(wait_ticks==425*60*configTICK_RATE_HZ);
+    clock_epoch+=60;uptime+=KID_REFRESH_US;pump();assert(redraw_requests==2&&refreshes==2);
 }
 
 static void assets(void) {
@@ -308,6 +376,7 @@ int main(int argc,char **argv) {
     assert(argc==2);
     if(!strcmp(argv[1],"validation"))validation();else if(!strcmp(argv[1],"selection"))selection();else if(!strcmp(argv[1],"keys"))keys();
     else if(!strcmp(argv[1],"store"))persistence();else if(!strcmp(argv[1],"refresh"))refresh();else if(!strcmp(argv[1],"controller"))controller();
+    else if(!strcmp(argv[1],"hour"))hour();else if(!strcmp(argv[1],"minute"))minute();else if(!strcmp(argv[1],"midnight"))midnight();
     else if(!strcmp(argv[1],"preview"))previews();else if(!strcmp(argv[1],"assets"))assets();else assert(false);
     cJSON_Delete(last_result);cJSON_Delete(last_event);puts("ok");return 0;
 }

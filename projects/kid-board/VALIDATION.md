@@ -16,6 +16,122 @@ limitations under the License.
 
 # Kid Board validation
 
+## On the device — 2026-11-05
+
+One reTerminal E1002 (ESP32-S3, CH340 console), paired with Muse over home Wi-Fi,
+with the Kid Board `SKILL.md` pasted into the owner's Muse chat.
+
+| Check | Result |
+|---|---|
+| “Plan Mia's day: brush teeth in 5 minutes, dress in 10, breakfast in 15; 2 stars, goal 5, reward park” | Muse called `clock.set`, `kid.set_schedule`, `kid.set_stars`; the six-colour page showed the timeline, stars and reward; layout checked by the owner |
+| Green pressed at the brushing step | Beep, row ticked, `kid.done` posted at once; Muse told the owner |
+| Refresh before the scheduling fix | A full 26 s Spectra 6 refresh every 60 s with no change |
+| Refresh after the fix | One refresh on restore at boot, none in the next 4.5 minutes; `epd` stack 2136 bytes free |
+
+`tools/board.sh reterminal-e1002 build`: app `0x191000` bytes in the fixed
+`0x200000` slot, 22 % free. Still to check on the device: a redraw at the next
+item's start time, the reward page at the star goal, midnight rollover and
+restoring the plan after a power cycle.
+
+## Refresh scheduling — 2026-11-05
+
+Tested revision: `e35aa88` plus the uncommitted refresh-scheduling patch.
+Source/test fingerprint: `12732e4116fc36c5376acc1d3195febaca5b3b2a001c0da6ef05b6ee3f570a53` (the NUL-delimited path/content algorithm
+used below, over the changed `esp32/` files listed at the end of this section).
+
+### Hardware evidence and stack budget
+
+Owner-supplied evidence covers **one paired E1002**, with its Muse skill installed.
+Muse successfully invoked `clock.set`, `kid.set_schedule` and `kid.set_stars`.
+The supplied log records 26,360 ms full refreshes near 435, 495, 555, 615, 676 and
+736 seconds, with an `epd` stack high-water mark of **872 bytes free**. Board
+revision was not supplied. These measurements describe the previous firmware.
+
+**This patch has 0 hardware units tested.** Its physical refresh intervals and
+post-change stack high-water mark await a device run.
+
+Kid Board renders on the `epd` task. Its stack is now **4,096 bytes**, adding
+1,024 bytes; other profiles retain 3,072 bytes. GCC 15.2.0 `-fstack-usage` checks
+against `e35aa88` report the render callback unchanged at 48 bytes, the view
+reduced from 256 to 240 bytes, and current-item selection unchanged at 48 bytes.
+On the measured rendering path this projects about **1,912 bytes free** against
+the **1,536-byte** target. This is a static budget estimate; the device's
+`link.stack` measurement establishes the actual remaining stack.
+
+### Current behavior
+
+The header shows the child, weekday/date and plan date. The highlighted item is
+the most recently due unfinished item, otherwise the next item today; equal-time
+steps retain input order. Green confirms that highlighted item. The worker
+calculates the next actual highlight change or local midnight and sleeps until
+that boundary or an external command/key/clock notification. Schedule, stars,
+note and completion edits enter the same existing 60-second coalescing window.
+A rendered snapshot's model revision, date and selected item account for updates
+already included in queued drawing. Identical commands preserve the screen.
+
+Each redraw request emits one `link.kid` line containing a fixed reason and UTC
+time. Reasons include `kid.set_schedule`, `kid.set_stars`, `kid.mark`, `key`,
+`current`, `date` and `restore`; labels and parent notes remain outside these logs.
+
+### Host and build checks
+
+Run from `esp32/`:
+
+```sh
+python3 -m unittest tests.test_kid_board tests.test_gadget_events tests.test_care_board
+CARD_PREVIEW_DIR=/tmp/card-preview python3 -m unittest tests.test_kid_board
+python3 -m unittest tests.test_epaper_cards tests.test_link_epaper_status
+```
+
+- Acceptance modules: **25 tests passed**; Kid Board preview run: **11 passed**.
+- Including shared e-paper coverage: **48 passed**. Both Kid-enabled and generic
+  task creation paths verify their configured stack sizes.
+- Full suite: **780 tests**, 1 failure, 8 errors, 7 skipped. All nine failure/error
+  identities match the initial validation's existing environment/fixture issues
+  listed below; the log is `/tmp/kid-refresh-full-tests.log`.
+- One hour from 07:00 through 08:00, with seven items ten minutes apart, produces
+  **7 redraw requests/refreshes**: one initial draw and six current-item changes.
+  Independent clock notifications every minute leave the other minutes unchanged.
+  Worker waits match actual item deadlines, including the final wait to midnight.
+- A star-only page receives an hour of minute notifications with **0 extra
+  requests/refreshes**; rendered pixels are byte-identical. Identical star and
+  state commands also preserve redraw counts and NVS writes.
+- A restored, completed schedule crosses local midnight with **1 additional
+  request/refresh**, resetting done flags once. Tests also cover time-zone offsets,
+  future plans, completed plans, delayed render starts and content coalescing.
+- Four true-six-colour PPM/PNG previews were regenerated at the paths below and
+  visually inspected. The header displays the weekday/date; goal progress and
+  the current highlight remain legible.
+- E1002 and E1001 builds pass with ESP-IDF v6.0.1 / Xtensa GCC 15.2.0. Signed
+  sizes remain `0x191000` (E1002, **21.68% free**, rounded 22%) and `0x1a1000`
+  (E1001, **18.55% free**, rounded 19%). The fixed partition table is unchanged.
+  These builds use the same local component-manager fallback described below.
+- Updated E1002 command registration: **5,628 bytes**; E1001: **5,302 bytes**.
+
+Logs: `/tmp/kid-refresh-acceptance.log`, `/tmp/kid-refresh-previews.log`,
+`/tmp/kid-refresh-final-tests.log`, `/tmp/kid-refresh-e1002-build.log` and
+`/tmp/kid-refresh-e1001-build.log`. Static frame reports reside in
+`/tmp/kid-refresh-stack/`.
+
+Fingerprint paths:
+
+```text
+esp32/main/epaper_status.c
+esp32/main/kid_board.c
+esp32/main/kid_board_view.c
+esp32/main/kid_model.c
+esp32/main/kid_model.h
+esp32/main/noise_control.cpp
+esp32/tests/epaper_cards_status_harness.c
+esp32/tests/kid_board_harness.c
+esp32/tests/test_epaper_cards.py
+esp32/tests/test_kid_board.py
+```
+
+## Initial implementation record — 2026-11-04
+
+The remaining sections preserve the initial implementation's validation results.
+
 Date: 2026-11-04. Branch: `project/kid-board`. Base commit: `e1bc390`
 (`project/care-board`), plus the uncommitted Kid Board implementation.
 
@@ -139,7 +255,7 @@ headers/libraries, and pinned `ppk2-api==0.9.2`.
 ## Hardware follow-up
 
 With one E1002, record its board revision and tested source revision, provision
-its SDK token locally, back up the original image and exercise:
+its SDK token locally and exercise:
 
 1. Pair/reconnect and issue all four Kid commands from Muse; verify complete
    schedule replacement, cancellation/pickup changes, stars and the earned reward.

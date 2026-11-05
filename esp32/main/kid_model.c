@@ -203,9 +203,24 @@ int kid_model_current(const kid_model_t *m, int64_t now, int offset) {
     for (unsigned i = 0; i < m->item_count; i++) {
         if (m->items[i].done) continue;
         if (next < 0 || m->items[i].minutes < m->items[next].minutes) next = (int)i;
-        if (m->items[i].minutes <= minutes && (due < 0 || m->items[i].minutes < m->items[due].minutes)) due = (int)i;
+        if (m->items[i].minutes <= minutes && (due < 0 || m->items[i].minutes > m->items[due].minutes)) due = (int)i;
     }
     return due >= 0 ? due : next;
+}
+
+int64_t kid_model_next_change(const kid_model_t *m, int64_t now, int offset) {
+    if (!m->active || !kid_model_clock_valid(now)) return 0;
+    int64_t start = (now + offset * 60LL) / 86400 * 86400 - offset * 60LL;
+    int64_t next = start + 86400;
+    char day[11]; kid_model_date(now, offset, day);
+    if (strcmp(day, m->date)) return next;
+    int current = kid_model_current(m, now, offset);
+    for (unsigned i = 0; i < m->item_count; i++) {
+        int64_t at = start + m->items[i].minutes * 60LL;
+        if (!m->items[i].done && at > now && at < next
+            && kid_model_current(m, at, offset) != current) next = at;
+    }
+    return next;
 }
 
 // Queues a completion notice and marks the selected step after acceptance.

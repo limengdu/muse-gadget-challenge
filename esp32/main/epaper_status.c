@@ -45,6 +45,12 @@
 
 static const char *TAG = "link.led";
 
+#if CONFIG_HOMEHUB_KID_BOARD
+#define EPD_TASK_STACK_BYTES 4096
+#else
+#define EPD_TASK_STACK_BYTES 3072
+#endif
+
 // ---- Pixels (host-tested) ---------------------------------------------------
 
 static inline uint16_t rgb565_from_be(const uint8_t *src) {
@@ -523,7 +529,7 @@ bool led_status_init(void) {
         ESP_LOGE(TAG, "%s init failed: %s", s_panel->name, esp_err_to_name(err));
         return false;
     }
-    if (xTaskCreate(epd_task, "epd", 3072, NULL, 2, &s_task) != pdPASS) {
+    if (xTaskCreate(epd_task, "epd", EPD_TASK_STACK_BYTES, NULL, 2, &s_task) != pdPASS) {
         ESP_LOGE(TAG, "failed to start the e-paper task");
         return false;
     }

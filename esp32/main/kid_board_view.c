@@ -51,12 +51,12 @@ void kid_model_render(epaper_cards_canvas_t *c, const kid_model_t *m, int64_t no
     epaper_cards_rect(c, 0, 0, 800, 72, 0, true, CARD_BLUE);
     box(c, 16, 1, 270, m->child, 40, CARD_WHITE);
     box(c, 18, 45, 265, "KID BOARD", 20, CARD_WHITE);
-    char line[96] = "Set clock with Muse", at[8] = "--:--";
+    char line[96] = "Set clock with Muse";
     struct tm t; time_t local = (time_t)(now + offset*60LL);
     if (kid_model_clock_valid(now) && gmtime_r(&local, &t)) {
-        strftime(line, sizeof(line), "%A %d %b", &t); strftime(at, sizeof(at), "%H:%M", &t);
+        strftime(line, sizeof(line), "%A %d %b", &t);
     }
-    box(c, 290, 6, 360, line, 28, CARD_WHITE); box(c, 668, 1, 120, at, 40, CARD_WHITE);
+    box(c, 290, 6, 498, line, 28, CARD_WHITE);
     if (m->date[0]) snprintf(line, sizeof(line), "Plan %s", m->date);
     else strcpy(line, "Ask Muse for your day");
     box(c, 290, 45, 330, line, 20, CARD_WHITE); box(c, 640, 45, 155, "GREEN Done", 20, CARD_WHITE);

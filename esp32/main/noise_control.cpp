@@ -1517,7 +1517,7 @@ static char *build_register_json(void) {
     cJSON *kid_mark = cJSON_CreateObject();
     cJSON_AddItemToObject(kid_mark, "id", string_param("Existing item ID."));
     cJSON_AddItemToObject(kid_mark, "done", kid_param("boolean", "Set or clear completion; repeated value is a no-op."));
-    add_command(commands, "kid.mark", "Set completion remotely and return state. Physical Green confirms the earliest due unfinished step, else the next, and sends a kid.done notice.", kid_mark, nullptr);
+    add_command(commands, "kid.mark", "Set completion remotely and return state. Physical Green confirms the latest due unfinished step, else the next, and sends a kid.done notice.", kid_mark, nullptr);
     add_command(commands, "kid.state", "Read schedule with done/done_at, current item or null, stars/reward, clock validity, RTC and storage status.", nullptr, nullptr);
 #endif
 #if CONFIG_HOMEHUB_CARE_BOARD
