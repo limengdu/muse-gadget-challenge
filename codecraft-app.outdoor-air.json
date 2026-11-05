@@ -86,7 +86,7 @@
         "type": "step"
       },
       {
-        "content": "<strong>Firmware upload is pending in this private draft.</strong> Once the firmware is attached, connect the D1 to your computer with the USB data cable and use the firmware tool below. Select the D1's USB port and keep the cable connected until the write completes. Follow the page's reset instructions and enter your own Muse SDK token when the page asks. After resetting, the device waits for Muse setup.",
+        "content": "Connect the D1 to your computer with a USB data cable and use the firmware tool below to install Outdoor Air. If the browser lists two ports, choose the USB-serial (CH340) port; the other one belongs to the RP2040. When the write finishes, restart the D1 by unplugging the USB cable and plugging it back in. Then enter your own Muse SDK token when the page asks; the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p3",
         "indent": 0,
         "type": "paragraph"
@@ -212,9 +212,9 @@
     ]
   },
   "sync": {
-    "local_revision": 4,
+    "local_revision": 5,
     "last_pushed_revision": 4,
     "last_pushed_at": "2026-11-05T06:08:05Z",
-    "last_pushed_hash": "a93352fc2544fd68098cf6221f24e430eaa4f2ccc2b30fd1f2fb7f06e5a9be32"
+    "last_pushed_hash": "sha256:b1bd4de93a516f2da5044c366dcd67ed16ac2f640ebb5005bc3d42b0032780e8"
   }
 }

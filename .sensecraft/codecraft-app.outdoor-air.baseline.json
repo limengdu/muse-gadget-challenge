@@ -1,0 +1,198 @@
+{
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Muse looks up outdoor air using its own tools and your preferences, then sends a snapshot to the D1's 480-by-480 LCD. The screen shows the observation time so you can judge how recent the report is.",
+        "id": "p1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Explore the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/air-guardian/projects/air-guardian\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source and setup guide</a>.",
+        "id": "p2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Prepare your device and accounts",
+        "expanded": true,
+        "id": "s1",
+        "indent": 0,
+        "title": "Prepare your device and accounts",
+        "type": "step"
+      },
+      {
+        "content": "One <strong>SenseCAP Indicator D1</strong>. This app supports D1 only; D1S, D1L and D1Pro are outside its supported hardware.",
+        "id": "b1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A USB-C data cable and a desktop computer running Chrome or Edge.",
+        "id": "b2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The Muse app on your phone, signed in to your Muse account, with Bluetooth enabled.",
+        "id": "b3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Your own Muse SDK token from <a href=\"https://gadgets.muse.ai/settings/sdk-tokens\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a>, signed in with the same Muse account. Create it under <strong>Account &gt; SDK tokens</strong>.",
+        "id": "b4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A 2.4 GHz Wi-Fi network and its password. Muse needs internet access to look up outdoor reports.",
+        "id": "b5",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Flash Outdoor Air",
+        "expanded": true,
+        "id": "s2",
+        "indent": 0,
+        "title": "Flash Outdoor Air",
+        "type": "step"
+      },
+      {
+        "content": "<strong>Firmware upload is pending in this private draft.</strong> Once the firmware is attached, connect the D1 to your computer with the USB data cable and use the firmware tool below. Select the D1's USB port and keep the cable connected until the write completes. Follow the page's reset instructions and enter your own Muse SDK token when the page asks. After resetting, the device waits for Muse setup.",
+        "id": "p3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "config": {
+          "device_id": "114993068",
+          "device_type": "59",
+          "firmware_name": "muse-gadget-outdoor-air-81cdb80.bin",
+          "firmware_size": "1773568",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-outdoor-air-81cdb80.bin",
+          "flash_address": "0x0",
+          "flash_mode": "bin",
+          "full_flash": false,
+          "muse_gadget": true
+        },
+        "id": "ff_outdoor_air_d1",
+        "type": "flash-firmware"
+      },
+      {
+        "content": "Pair the D1 in Muse",
+        "expanded": true,
+        "id": "s3",
+        "indent": 0,
+        "title": "Pair the D1 in Muse",
+        "type": "step"
+      },
+      {
+        "content": "Keep your phone near the D1. In the Muse app, open <strong>Settings &gt; Devices</strong>, enable <strong>Developer mode</strong>, and tap <strong>Add Device</strong> (the + button). Select the nearby <strong>MuseGadget-...</strong> device matching the name on the D1; this profile can appear as <strong>MuseGadget-Disp-...</strong>. When asked to confirm on the device, press the <strong>button on top</strong>. Choose your 2.4 GHz Wi-Fi, enter its password, and wait until Muse shows the device as connected. The SDK status screen remains in use until the first outdoor snapshot arrives.",
+        "id": "p4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the Outdoor Air skill once",
+        "expanded": true,
+        "id": "s4",
+        "indent": 0,
+        "title": "Install the Outdoor Air skill once",
+        "type": "step"
+      },
+      {
+        "content": "Open <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/air-guardian/projects/air-guardian/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">Outdoor Air SKILL.md</a>, copy its <strong>full contents</strong>, and paste them into your Muse chat. Ask: \"Remember this as my Outdoor Air skill and use it with my SenseCAP Indicator D1.\" Repeat with the full updated skill whenever its contents change.",
+        "id": "p5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Tell Muse which city or place to use and any household preferences relevant to its advice. Muse uses your private context for the location; the display uses a short English or transliterated city label.",
+        "id": "p6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Ask Muse to update and change the display",
+        "expanded": true,
+        "id": "s5",
+        "indent": 0,
+        "title": "Ask Muse to update and change the display",
+        "type": "step"
+      },
+      {
+        "content": "<strong>\"Can we go outside? Look up current outdoor air for my chosen place and update Outdoor Air.\"</strong> Muse looks up the report, sets the device clock and local offset when needed, and sends AQI, PM2.5 or both with a category and short advice. Check the place, reading and observation time on the D1, and Muse's summary in chat.",
+        "id": "b6",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "<strong>\"How old is the saved outdoor report?\"</strong> Muse can read <code>air.status</code> to check the saved observation and its age. An unknown clock produces an unknown age; a report at least three hours old requests a refresh.",
+        "id": "b7",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "<strong>\"Show the numbers.\"</strong> The implemented numbers view shows both metrics, with <code>--</code> for a missing value. <strong>\"Make the screen calm at bedtime.\"</strong> selects the night view, which uses dim warm pixels while retaining the existing backlight setting.",
+        "id": "b8",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "After setup and pairing, the top button is designed to cycle <strong>ambient &gt; numbers &gt; night &gt; ambient</strong>. Snapshot and view saving are implemented; button cycling and reboot persistence still await complete hardware checks.",
+        "id": "b9",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "For an optional routine, ask <strong>\"Refresh Outdoor Air every morning for my chosen place.\"</strong> Scheduling runs in Muse. The gadget displays the latest pushed snapshot between updates; complete routine operation remains to be checked on hardware.",
+        "id": "b10",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Understand the data and validation limits",
+        "expanded": true,
+        "id": "s6",
+        "indent": 0,
+        "title": "Understand the data and validation limits",
+        "type": "step"
+      },
+      {
+        "content": "Outdoor Air displays Muse-sourced outdoor reports. The D1 does not measure outdoor air locally or use indoor sensors for this app. The firmware accepts US EPA AQI or PM2.5 in ug/m3; Muse selects an appropriate source and preserves its actual observation time. Source availability and reporting periods determine how current the data is. Refresh requests are visual status indicators; data lookups, schedules and advice run in Muse.",
+        "id": "p7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/air-guardian/projects/air-guardian/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">validation record</a> records one owner-tested D1: fresh-boot pairing succeeded, <code>air.status</code>, <code>clock.set</code> and <code>air.update</code> answered, and a snapshot appeared. No display artefacts were observed with the final display revision. Board revision is unspecified. Full view/button interaction, night readability, persistence through reboot, reconnect/error flows, stale-age transitions, image return and complete routines still need hardware validation. The firmware uploaded to this Hub draft must also be tested from the draft page before publishing.",
+        "id": "p8",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "images": [
+    "https://sensecraft-statics.seeed.cc/refer/pic/1793857824126_EP6WgA_hub-cover.jpg"
+  ],
+  "info": {
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "app_name": "Outdoor Air",
+    "author": "limengdu",
+    "excerpt": "A home outdoor air display for families and makers. Muse sends AQI or PM2.5 and short advice for your chosen place to a SenseCAP Indicator D1.",
+    "license": null,
+    "scene": "2"
+  },
+  "materials": [
+    {
+      "buy_url": "https://www.seeedstudio.com/SenseCAP-Indicator-D1-p-5643.html?___store=retailer",
+      "id": "114993068",
+      "name": "SenseCAP Indicator D1",
+      "note": "",
+      "quantity": "1"
+    }
+  ]
+}
