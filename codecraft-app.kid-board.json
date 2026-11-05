@@ -12,7 +12,7 @@
     "excerpt": "Plan a child's day with Muse on reTerminal E1002: show routines and a family star chart, then receive completion notices when the child presses Green. For families and makers with a Muse account.",
     "scene": "6",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -219,8 +219,8 @@
   },
   "sync": {
     "local_revision": 4,
-    "last_pushed_revision": 3,
-    "last_pushed_at": "2026-11-05T06:01:56Z",
-    "last_pushed_hash": "sha256:2438fb1a3f7e7dd327a03f06b8d31b264fe5fdcd30a7a8f01e7566d87d9c91de"
+    "last_pushed_revision": 4,
+    "last_pushed_at": "2026-11-05T06:39:09Z",
+    "last_pushed_hash": "sha256:768ad4e970de906fe3657ab0c5c91303db34f4abaf15d9bb3825dd6e4b0ea0db"
   }
 }
