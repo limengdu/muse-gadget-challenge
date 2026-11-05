@@ -1,0 +1,262 @@
+{
+  "manifest_version": 1,
+  "identity": {
+    "app_id": "13464",
+    "remote_type": "Global",
+    "org_id": "424326273238784",
+    "account": null,
+    "created_at": "2026-11-05T04:14:34Z"
+  },
+  "info": {
+    "app_name": "Care Board for reTerminal E1001",
+    "excerpt": "Send family messages and set daily reminders for an older parent on a reTerminal E1001. Families and makers using Muse can see when a reminder is confirmed and follow up when confirmation is missing.",
+    "scene": "7",
+    "license": "Apache-2.0",
+    "author": "",
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "activity_id": null
+  },
+  "images": [
+    {
+      "path": "projects/care-board/media/hub-cover.jpg",
+      "sha256": "22d16e8b9444e9a3e22d53d2710554b74f6340731557736496f11c6f0e2e17ec",
+      "file_url": "https://sensecraft-statics.seeed.cc/refer/pic/1793857820456_pYQNYN_hub-cover.jpg",
+      "role": "cover"
+    }
+  ],
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Keep a large-print day plan on a kitchen display. A parent can confirm a due reminder with the Green key, and the family's Muse chat receives the confirmation.",
+        "id": "p1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Explore the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/care-board/projects/care-board\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source</a>, the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/care-board/projects/care-board/README.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">project guide</a>, and the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/care-board/projects/care-board/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">hardware validation record</a>. The source is licensed under Apache-2.0.",
+        "id": "p2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Prepare your device and Muse account",
+        "expanded": true,
+        "id": "s1",
+        "indent": 0,
+        "title": "Prepare your device and Muse account",
+        "type": "step"
+      },
+      {
+        "content": "Have these ready before flashing:",
+        "id": "p3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "One <strong>reTerminal E1001</strong>, powered or charged, and a USB-C data cable.",
+        "id": "b1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A desktop computer running <strong>Chrome or Edge</strong>.",
+        "id": "b2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "The <strong>Muse app</strong> on a nearby phone, signed in to the family member's Muse account, with Bluetooth enabled.",
+        "id": "b3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "A <strong>2.4 GHz Wi-Fi</strong> network and its password.",
+        "id": "b4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "Your own Muse SDK token, created at <a href=\"https://gadgets.muse.ai/settings/sdk-tokens\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a>. Keep it ready for the page's token prompt.",
+        "id": "b5",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "If you want to preserve the device's existing firmware, make a backup before installation using the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/care-board/AGENTS.md#credentials-and-backups\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">board backup guide</a>.",
+        "id": "p4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Flash the Care Board firmware",
+        "expanded": true,
+        "id": "s2",
+        "indent": 0,
+        "title": "Flash the Care Board firmware",
+        "type": "step"
+      },
+      {
+        "content": "Connect the E1001's console USB to your computer and use the firmware tool below to select its USB port and install Care Board. Keep the cable connected. After the write, press the device's Reset button when the page asks, and enter <strong>your own Muse SDK token</strong> at the page's token prompt. Follow the page's provisioning instructions; the token connects the gadget to your Muse account.",
+        "id": "p5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "id": "flash_care_board",
+        "type": "flash-firmware",
+        "config": {
+          "device_id": "100073581",
+          "device_type": "58",
+          "flash_mode": "bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
+          "firmware_name": "muse-gadget.bin",
+          "firmware_size": "1708032",
+          "flash_address": "0x90000",
+          "muse_gadget": true,
+          "full_flash": false
+        }
+      },
+      {
+        "content": "Pair the E1001 in the Muse app",
+        "expanded": true,
+        "id": "s3",
+        "indent": 0,
+        "title": "Pair the E1001 in the Muse app",
+        "type": "step"
+      },
+      {
+        "content": "Keep your phone near the powered board. In Muse, open <strong>Settings &gt; Devices</strong>, enable <strong>Developer mode</strong>, and tap <strong>Add Device</strong> or <strong>+</strong>. Select the nearby <strong>MuseGadget-Disp-…</strong> matching the board. Press the <strong>Green key</strong> when the app requests device confirmation, then choose your 2.4 GHz Wi-Fi and enter its password. Continue when the app shows the device as connected. The <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/care-board/README.md#step-3-add-the-device-in-the-muse-app\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">pairing guide</a> covers the same flow.",
+        "id": "p6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the skill and set up the family",
+        "expanded": true,
+        "id": "s4",
+        "indent": 0,
+        "title": "Install the skill and set up the family",
+        "type": "step"
+      },
+      {
+        "content": "Open the project's <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/care-board/projects/care-board/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">SKILL.md</a>, copy <strong>its full contents</strong>, and paste them into the family's Muse chat. Ask Muse: <strong>Remember this skill and use it with my E1001 Care Board.</strong> Install it once after pairing; send the complete skill again whenever it changes. This teaches Muse how to update the board and respond to its events.",
+        "id": "p7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Then say: <strong>Set this Care Board up for Dad. Tell Mia when he confirms. His local time is London time.</strong> Replace the names and time zone with your family's details. Muse reads the board state and sets its names, clock and local offset. Check that the page shows the intended names and local time before adding reminders.",
+        "id": "p8",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Send a message and try a reminder",
+        "expanded": true,
+        "id": "s5",
+        "indent": 0,
+        "title": "Send a message and try a reminder",
+        "type": "step"
+      },
+      {
+        "content": "Start with the hardware-tested request: <strong>Leave Dad a message and add a reminder in two minutes.</strong> Give Muse the message text when needed. The page should show the note and reminder row. At the reminder time, the reminder becomes due and the buzzer sounds. A short <strong>Green key</strong> press confirms the oldest due or missed reminder; its row gains a check and confirmation time, and Muse replies in the family's chat with the skill installed.",
+        "id": "p9",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Try these everyday requests next:",
+        "id": "p10",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "<strong>Tell Dad I'll be home for dinner at seven. Love you!</strong> Muse adds a short family message to the page.",
+        "id": "b6",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "<strong>Remind Dad about his blood pressure pill at eight each morning. Tell me if he hasn't confirmed by 8:30.</strong> Muse sets a daily 08:00 reminder and a 30-minute confirmation window. Use the medication and timing your family has already agreed.",
+        "id": "b7",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "<strong>Has Dad confirmed his reminder?</strong> Muse reads the current state and reports the recorded status and confirmation time.",
+        "id": "b8",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "An unconfirmed reminder becomes <strong>MISSED</strong> after its configured interval. The skill asks Muse to report the missing confirmation and suggest a call. Your Muse account's phone notification settings control whether chat updates also alert the phone.",
+        "id": "p11",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Additional controls are implemented: with no due or missed reminder, <strong>Green</strong> marks the newest unread message as read; the <strong>left white key</strong> sends an \"I'm OK today\" check-in; the <strong>right white key</strong> requests a call from the family contact. Delivery and skill replies for these three paths still await hardware checks.",
+        "id": "p12",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Use the board within its limits",
+        "expanded": true,
+        "id": "s6",
+        "indent": 0,
+        "title": "Use the board within its limits",
+        "type": "step"
+      },
+      {
+        "content": "Care Board is a family reminder and communication aid, not a medical device or emergency service. A key press records a confirmation; establish whether medication was taken by talking to the parent. Use direct contact or appropriate local help for urgent health concerns.",
+        "id": "p13",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Use short English or romanized display text. The board supports English/ASCII and selected punctuation, stores up to three messages and eight reminders, and shows the newest message with up to four reminder rows. A two-line message leaves room for three rows. Full e-paper refresh flashes and takes about two seconds.",
+        "id": "p14",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Keep Wi-Fi and the Muse session available for event delivery. Queued events and recent event history are held in RAM and clear after a power loss; the care model is saved separately. Check the local time after setup and ask Muse to refresh the UTC offset after daylight saving changes. Daily reminders reset at local midnight, so fit the confirmation window within the same local day. For a reminder on an exact future date, ask Muse to arrange a scheduled action that installs it on that date.",
+        "id": "p15",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "To stop the reminder plan, ask Muse to set the board's reminders to an empty list. To return to the normal status page, ask Muse to use <strong>care.clear</strong>; the stored plan keeps running, and <strong>care.update</strong> opens Care Board again. Holding the Green key for five seconds resets device setup, as described in the project guide.",
+        "id": "p16",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The validation record covers <strong>one E1001</strong>, tested on <strong>2026-11-04</strong> at <strong>29b7eb7</strong>: a message and reminder displayed, the due buzzer and event, Green confirmation, and Muse's confirmation reply. A missed-reminder notification was checked at <strong>4623eb6</strong>. Overnight operation, daily reset, Wi-Fi reconnection with queued events, and installation of this token-free release through the Hub flash page remain pending. Test those paths before relying on the board in your household.",
+        "id": "p17",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "bom": {
+    "materials": [
+      {
+        "id": "100073581",
+        "name": "reTerminal E1001",
+        "quantity": "1",
+        "buy_url": "https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?___store=retailer",
+        "note": "Runs Care Board, displays family messages and reminders, and provides the reminder buzzer and family response keys."
+      }
+    ]
+  },
+  "sync": {
+    "local_revision": 2,
+    "last_pushed_revision": 2,
+    "last_pushed_at": "2026-11-05T05:50:23Z",
+    "last_pushed_hash": "0e7d2d5d1d744d0b1ecf65d680c31dce8b9030e426f47e6bf6a857ff09021e22"
+  }
+}
