@@ -252,6 +252,10 @@ Five skips have the same missing inputs on both trees: Python `cryptography`
 for pairing transcript vectors, libvpx encoder, libx264, PSA Crypto development
 headers/libraries, and pinned `ppk2-api==0.9.2`.
 
+## CodeCraft Hub draft flash (2026-11-05)
+
+The uploaded release `muse-gadget-kid-board-7cd1510.bin` (token-free, built from `7cd1510`) was flashed from the draft page of Hub app 13463 onto one reTerminal E1002. After a reset the board started normally and the owner's device checks passed. Hub writes the application image only, so the token and pairing already stored on the board carried over. The draft page showed no reset or token prompt ([sensecraft-cli#6](https://github.com/Seeed-Solution/sensecraft-cli/issues/6)).
+
 ## Hardware follow-up
 
 With one E1002, record its board revision and tested source revision, provision
