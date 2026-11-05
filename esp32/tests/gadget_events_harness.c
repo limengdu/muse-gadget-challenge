@@ -22,6 +22,16 @@ static int64_t now;
 #ifdef LINK_FAKE_CUSTOM_CALLOC
 static bool fail_calloc;
 static unsigned psram_allocations, internal_allocations;
+#if CONFIG_MUSE_HOME_EYES
+static unsigned psram_stacks;
+BaseType_t xTaskCreateWithCaps(TaskFunction_t task, const char *name, unsigned stack,
+                             void *arg, unsigned priority, TaskHandle_t *handle, unsigned caps) {
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) && stack == 6144);
+    assert(!strcmp(name, "gadget_events"));
+    psram_stacks++;
+    return xTaskCreate(task, name, stack, arg, priority, handle);
+}
+#endif
 bool esp_psram_is_initialized(void) { return TEST_PSRAM_AVAILABLE; }
 void *heap_caps_calloc(size_t count, size_t size, int caps) {
     if (caps & MALLOC_CAP_SPIRAM) psram_allocations++;
@@ -149,6 +159,9 @@ static void queue_tests(void) {
     else assert(psram_allocations == 0 && internal_allocations == 2);
 #endif
     assert(gadget_events_init() && gadget_events_init());
+#if CONFIG_MUSE_HOME_EYES
+    assert(psram_stacks == 1 && internal_allocations == 0);
+#endif
     cJSON *data = cJSON_Parse("{\"pressed\":true,\"count\":2}");
     assert(gadget_events_post("button", "Ready \"now\"", data));
     cJSON_Delete(data);
@@ -510,6 +523,11 @@ static void debug_tests(void) {
 
 
 int main(void) {
+#if CONFIG_MUSE_HOME_EYES && !TEST_PSRAM_AVAILABLE
+    assert(!gadget_events_init());
+    assert(psram_stacks == 0 && psram_allocations == 0 && internal_allocations == 0);
+    return 0;
+#endif
     queue_tests(); parser_tests(); sequence_tests(); recorded_stream_tests(); busy_tests(); worker_tests(); debug_tests(); reset();
     puts("ok");
     return 0;

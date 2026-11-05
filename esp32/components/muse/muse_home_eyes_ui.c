@@ -19,6 +19,11 @@
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#else
+#define EXT_RAM_BSS_ATTR
+#endif
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
@@ -26,7 +31,7 @@
 #include "muse_ui.h"
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
-static muse_home_eyes_view_t s_view;
+static EXT_RAM_BSS_ATTR muse_home_eyes_view_t s_view;
 static atomic_uint s_ack;
 static atomic_uint s_dismissed;
 static atomic_bool s_ready;
@@ -34,7 +39,7 @@ static void (*s_notify)(void);
 static lv_obj_t *s_badge, *s_card, *s_heading, *s_body, *s_time;
 static uint32_t s_drawn;
 static bool s_alert;
-static char s_badge_text[112];
+static EXT_RAM_BSS_ATTR char s_badge_text[112];
 
 void muse_home_eyes_bind(void (*notify)(void)) { s_notify = notify; }
 void muse_home_eyes_ready(void) { atomic_store(&s_ready, true); }
@@ -68,7 +73,7 @@ LV_FONT_DECLARE(muse_font_cjk_16)
 #define HOME_EYES_CJK_FONT muse_font_cjk_16
 #endif
 
-static lv_font_t s_heading_font, s_body_font;
+static EXT_RAM_BSS_ATTR lv_font_t s_heading_font, s_body_font;
 
 static lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, int width)
 {

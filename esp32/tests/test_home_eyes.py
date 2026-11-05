@@ -27,11 +27,19 @@ except ImportError:
 
 class HomeEyes(unittest.TestCase):
     def test_core(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            binary = compile_host(Path(tmp), [ROOT / 'tests/home_eyes_harness.c',
-                                             ROOT / 'main/home_eyes_core.c'], json=True)
-            result = run_host(binary)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for firmware in (0, 1):
+            with self.subTest(firmware=firmware), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                (out / 'esp_heap_caps.h').write_text(
+                    '#include <assert.h>\n#include <stdlib.h>\n'
+                    '#define MALLOC_CAP_SPIRAM 1\n#define MALLOC_CAP_8BIT 2\n'
+                    'static inline void *heap_caps_calloc(size_t n, size_t s, int caps) {\n'
+                    'assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)); return calloc(n, s); }\n')
+                binary = compile_host(out, [ROOT / 'tests/home_eyes_harness.c',
+                                           ROOT / 'main/home_eyes_core.c'], json=True,
+                                      flags=['-DESP_PLATFORM=1'] if firmware else [])
+                result = run_host(binary)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_watcher_registration_size_and_schema(self):
         source = (ROOT / "main/noise_control.cpp").read_text()
@@ -101,7 +109,12 @@ int main() {
             (out / 'esp_heap_caps.h').write_text('#include <stdlib.h>\n#define MALLOC_CAP_SPIRAM 1\n'
                                                '#define MALLOC_CAP_8BIT 2\n'
                                                '#define heap_caps_malloc(n,c) malloc(n)\n')
-            (out / 'esp_log.h').write_text('#define ESP_LOGW(tag, ...) ((void)(tag))\n')
+            (out / 'esp_log.h').write_text('#define ESP_LOGW(tag, ...) ((void)(tag))\n'
+                                         'void record_stack_log(const char *, const char *, ...);\n'
+                                         '#define ESP_LOGI record_stack_log\n')
+            with (out / 'freertos/task.h').open('a') as f:
+                f.write('typedef unsigned char StackType_t;\n'
+                        'unsigned uxTaskGetStackHighWaterMark(TaskHandle_t);\n')
             (out / 'esp_err.h').write_text('typedef int esp_err_t;\n')
             (out / 'freertos/queue.h').write_text('#pragma once\ntypedef void *QueueHandle_t;\n')
             sem = out / 'freertos/semphr.h' 
@@ -122,7 +135,9 @@ int main() {
             headers = {
                 'sdkconfig.h': '#pragma once\n',
                 'esp_err.h': '#pragma once\ntypedef int esp_err_t;\n#define ESP_OK 0\n#define ESP_ERR_NO_MEM 1\n#define ESP_ERR_TIMEOUT 2\n#define ESP_ERR_NOT_SUPPORTED 3\nconst char *esp_err_to_name(int);\n',
-                'esp_heap_caps.h': '#include <stdlib.h>\n#define MALLOC_CAP_SPIRAM 1\n#define MALLOC_CAP_8BIT 2\n#define heap_caps_malloc(n,c) malloc(n)\n#define heap_caps_calloc(n,s,c) calloc(n,s)\n',
+                'esp_heap_caps.h': '#include <stdlib.h>\n#define MALLOC_CAP_SPIRAM 1\n#define MALLOC_CAP_8BIT 2\n'
+                                  'void *heap_caps_malloc(size_t, int);\nvoid *heap_caps_calloc(size_t, size_t, int);\n'
+                                  'void release_buffer(void *);\n#define free release_buffer\n',
                 'esp_log.h': '#define ESP_LOGW(tag, ...) ((void)(tag))\n#define ESP_LOGE(tag, ...) ((void)(tag))\n',
                 'freertos/FreeRTOS.h': '#pragma once\n#define pdPASS 1\n#define portMAX_DELAY -1\n',
                 'freertos/semphr.h': '#pragma once\ntypedef void *SemaphoreHandle_t;\nSemaphoreHandle_t xSemaphoreCreateMutex(void);\nint xSemaphoreTake(SemaphoreHandle_t,int);\nint xSemaphoreGive(SemaphoreHandle_t);\n',
@@ -164,6 +179,80 @@ int main() {
         self.assertIn('depends on MUSE_WATCHER_CAMERA', kconfig)
         self.assertIn('select HOMEHUB_GADGET_EVENTS', kconfig)
         self.assertIn('select HOMEHUB_GADGET_CLOCK', kconfig)
+
+    def test_camera_dma_read_chunks(self):
+        source = (ROOT / 'components/camera/camera_sscma.c').read_text()
+        begin = source.index('#if CONFIG_MUSE_HOME_EYES')
+        budget = source[begin:source.index('static camera_sscma_config_t', begin)]
+        receive = source[source.index('static esp_err_t receive('):source.index('static int int_field(')]
+        for enabled in (0, 1):
+            with self.subTest(home_eyes=enabled), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                harness = out / 'read.c'
+                harness.write_text('''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+typedef int esp_err_t;
+#define ESP_OK 0
+#define ESP_ERR_TIMEOUT 1
+#define SSCMA_MAX_READ 4095
+#define SSCMA_CMD_AVAILABLE 1
+#define SSCMA_CMD_READ 2
+#define ESP_RETURN_ON_ERROR(call, ...) do { int e = (call); if (e) return e; } while (0)
+#define ESP_LOGW(...) ((void)0)
+''' + budget + '''
+static uint8_t storage[READ_BUFFER_BYTES];
+static uint8_t *s_rx = storage;
+static unsigned s_replies, pending, read_size, reads;
+static bool available = true, fail_transfer;
+static bool has_data(void) { return available; }
+static struct { bool (*has_data)(void); } s_cfg = { has_data };
+static esp_err_t send_packet(unsigned cmd, const void *p, unsigned n)
+{
+    assert(!p);
+    if (cmd == SSCMA_CMD_READ) { assert(n <= READ_BYTES); read_size = n; reads++; }
+    else assert(cmd == SSCMA_CMD_AVAILABLE);
+    return ESP_OK;
+}
+static esp_err_t transfer(const void *tx, uint8_t *rx, size_t n)
+{
+    assert(!tx && rx == s_rx && n <= sizeof(storage));
+    if (fail_transfer) return ESP_ERR_TIMEOUT;
+    if (!read_size) { assert(n == 2); rx[0] = pending >> 8; rx[1] = pending; }
+    else { assert(n == read_size); memset(rx, 0x5a, n); read_size = 0; }
+    return ESP_OK;
+}
+static bool sscma_rx_feed(unsigned *total, const uint8_t *rx, size_t n)
+{
+    assert(n <= READ_BYTES);
+    for (size_t i = 0; i < n; i++) assert(rx[i] == 0x5a);
+    *total += n; return true;
+}
+''' + receive + '''
+int main(void)
+{
+    assert(READ_BYTES == (CONFIG_MUSE_HOME_EYES ? 512 : 4095));
+    assert(sizeof(storage) == (CONFIG_MUSE_HOME_EYES ? 512 : 4096));
+    for (unsigned length = 1; length <= 65534; length += 137) {
+        pending = length; s_replies = reads = 0; size_t got = 0;
+        assert(receive(&got) == ESP_OK && got == length && s_replies == length);
+        assert(reads == (length + READ_BYTES - 1) / READ_BYTES);
+    }
+    size_t got = 1; available = false;
+    assert(receive(&got) == ESP_OK && got == 0);
+    available = true; pending = 0xffff;
+    assert(receive(&got) == ESP_OK && got == 0);
+    fail_transfer = true;
+    assert(receive(&got) == ESP_ERR_TIMEOUT && got == 0);
+    return 0;
+}
+''')
+                binary = compile_host(out, [harness], flags=[f'-DCONFIG_MUSE_HOME_EYES={enabled}'])
+                result = run_host(binary)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == '__main__':

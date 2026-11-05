@@ -16,6 +16,182 @@ limitations under the License.
 
 # Home Eyes validation
 
+## RAM margin follow-up (2026-11-05)
+
+Revision: `a6367d3` plus this uncommitted working tree on `project/home-eyes`.
+Target: SenseCAP Watcher, ESP32-S3, 8 MiB PSRAM. Toolchain: ESP-IDF v6.0.1,
+Xtensa GCC 15.2.0 (`esp-15.2.0_20251204`). The hardware observations below
+were supplied for one Watcher running the baseline; its board revision is
+unknown. This follow-up used host tests and target compilation, with zero
+device accesses.
+
+### Baseline hardware finding
+
+Pairing worked. `camera.capture` returned a scene Muse described. `home.say`
+showed a message card; wheel acknowledgement produced a `home-eyes` event and
+Muse informed the owner. `watch.start` worked. Later, `watch.status` reached
+`invoke request: command=watch.status`, but no result followed and Muse reported
+`node_invoke_timeout`. The tunnel logged `keepalive timeout (65s idle)` and
+then `retrying tunnel stream open` / `server reset tunnel stream` every five
+seconds. Typed turns were interrupted.
+
+Heartbeat `dma=free/largest` was 24/11 KiB at unpaired boot, 16/11 KiB connected
+and idle at t=162 s before a watch, then 15/11 KiB after camera checks, remaining
+there. `noise_tx_has_dma_headroom()` gates both queued invoke results and tunnel
+pings at `NOISE_TX_DMA_RESERVE_BYTES = 16 * 1024`. These observations and the
+send-path gate explain why accepted commands and keepalives could remain queued.
+The connected-device acceptance floor is 22 KiB free DMA, 6 KiB above that gate.
+
+### Static RAM measurement
+
+Baseline values come from `build-muse-sensecap-watcher/muse-gadget.map`, checked
+with the installed `esp_idf_size --files` reader and the existing target objects.
+After values come from recompiling these translation units with the exact
+existing `compile_commands.json` options, plus `-fstack-usage` and warnings as
+errors. Matching dependency versions were read from the local component cache.
+They are object-section payloads in bytes; final-link alignment and heap metadata
+are separate. Full firmware linking was blocked as described below.
+
+| Object | Internal .bss before → after | Internal .data before → after | PSRAM .bss before → after |
+|---|---:|---:|---:|
+| home_eyes.c.obj | 101 → 22 | 0 → 0 | 6,912 → 8,016 |
+| home_eyes_core.c.obj | 0 → 0 | 0 → 0 | 0 → 0 |
+| muse_home_eyes_ui.c.obj | 878 → 38 | 8 → 8 | 0 → 840 |
+| watcher_camera.c.obj | 14 → 14 | 0 → 0 | 0 → 0 |
+| gadget_events.c.obj | 847 → 246 | 0 → 0 | 0 → 601 |
+| camera_sscma.c.obj | 105 → 105 | 20 → 20 | 0 → 0 |
+| Total | 1,945 → 425 | 28 → 28 | 6,912 → 9,457 |
+
+The four requested Home Eyes/UI/camera objects use 1,001 → 82 bytes of internal
+static data. Including event storage and the camera driver gives 1,973 → 453
+bytes: **1,520 bytes released from internal static RAM**.
+
+`s_state` and `s_snapshot` already occupied 3,456 bytes each in PSRAM, including
+two 1,024-byte baseline/candidate frames per state. The Watcher overlay and the
+generated configuration both already enable
+`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY`. This fix retains that placement
+and moves the 1,024-byte worker thumbnail, 80-byte error text, 656-byte UI view,
+112-byte badge text, two 36-byte font descriptors and 601-byte event reply into
+external BSS. Locks, atomics and task handles remain internal.
+
+### Runtime allocations and stack budget
+
+| Allocation | Baseline | After |
+|---|---|---|
+| home_eyes worker stack | 6,144 bytes internal, including its 1,024-byte thumbnail | 4,096 bytes internal; thumbnail in external BSS |
+| gadget_events sender stack | 6,144 bytes internal | 6,144 bytes PSRAM, with its task control block internal |
+| Restore scratch state | 3,456 bytes through ordinary calloc | 3,456 bytes explicitly allocated in PSRAM, freed after validation |
+| Retained event records and strings | Ordinary calloc, normally internal below the configured 4,096-byte threshold | Explicit PSRAM allocation for Home Eyes |
+| Camera SPI staging while powered | 256-byte TX + 4,096-byte RX, internal DMA | 256-byte TX + 512-byte RX, internal DMA |
+| Thumbnail decoder | 6,168-byte accumulator + 3,100-byte ROM JPEG pool in PSRAM | Same PSRAM allocations, freed after each check |
+
+The worker still calls `config_set_str()` / NVS synchronously and uses an
+internal stack. The event sender only submits queued requests and processes
+responses, so its stack can use PSRAM. Event memory changes are gated by
+`CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM`; event ordering, retries, request formats
+and delivery behavior retain their existing implementation. The Link reserve
+and shared send path are unchanged.
+
+GCC's exact-option stack report measures the worker's own frame at 1,184 bytes
+before and 96 bytes after. After outlining, `publish` uses 784 bytes and
+`post_event` 544 bytes; the largest known worker/helper frame sum is 880 bytes.
+These figures exclude nested library/IDF/ROM calls and interrupts. The 4,096-byte
+allocation retains 3,216 bytes beyond that known sum; runtime high-water
+measurement is still required. After the first successful capture followed by
+a successful state save, firmware emits one
+`link.stack: home_eyes stack high water mark: ... bytes free` line. The host
+harness checks its timing and single emission; its fake stack value is a test
+input, separate from hardware evidence.
+
+Home Eyes creates five LVGL labels and two base objects: target type sizes give
+692 bytes of object headers, plus content, styles and layout allocations. These
+already use the existing PSRAM-first LVGL allocator. Cards add no canvas. The
+existing 412×412 RGB565 camera canvas, when preview is used, is 339,488 bytes in
+PSRAM. JPEG payloads, preview frame copies, base64 results and SSCMA reply
+assembly already use PSRAM. The JPEG decoder's 124-byte descriptor remains on
+the calling task's stack. Capture releases its JPEG; thumbnail decoding frees
+both scratch allocations on success and failure. Preview retains only its latest
+frame until replacement or preview stop.
+
+Camera reads now request at most 512 bytes with a word-aligned staging capacity;
+larger replies are assembled by the existing parser. The DMA stage saves 3,584
+bytes during capture. A final short SPI read can additionally need a temporary
+driver buffer of up to 512 bytes. More read transactions can increase capture
+latency; real preview cadence and capture timing remain device checks.
+
+### Expected DMA margin and acceptance
+
+The fixed internal saving is **8,192 bytes of reserved task stacks + 1,520 bytes
+of static data = 9,712 bytes (9.48 KiB)**. Moving retained event records adds a
+variable saving that is excluded from this estimate. The thumbnail is accounted
+for within the old stack allocation, so its move contributes through the stack
+reduction rather than a second independent saving.
+
+Applied to the reported 15 KiB after checks, the estimate is **24.48 KiB free
+between checks**; the 16 KiB connected idle observation predicts 25.48 KiB.
+Subtracting 768 bytes of camera staging predicts 23.73 KiB during capture, or
+about 23.23 KiB with a 512-byte short-read driver buffer. Heap metadata, final-link
+padding, NVS/JSON/network transients and runtime variation still require device
+measurement. These are budget estimates, not measured new DMA minima or a
+guarantee of the 22 KiB floor. The largest free block also requires remeasurement.
+
+On the fixed build, run a connected watch at `interval_min=2` for at least one
+hour. Record DMA free/largest through captures, successful `watch.status` replies,
+tunnel keepalives and uninterrupted typed turns, plus the one-time stack line.
+Exercise scene change → event → `camera.capture` → `watch.verdict`, message and
+alert acknowledgements, save/reboot recovery and preview alongside checks.
+Acceptance requires DMA free ≥ 22 KiB throughout, with bounded stack usage and
+capture latency. This device acceptance remains open.
+
+### Device result on the fixed build (one Watcher)
+
+`tools/muse/board.sh build watcher`: app `0x231000` bytes, 45 % of the 4 MiB slot
+free. Flashed and connected, with a watch at `interval_min=2`, low sensitivity:
+
+| Check | Result |
+|---|---|
+| Heartbeat DMA free/largest, connected, across two worker captures (5 minutes) | **23K/17K** throughout (previously 16K idle, 15K after checks) |
+| Internal free/largest | 26K/17K (previously 20K/11K) |
+| Tunnel keepalive | `raw=up` throughout; no keepalive timeout or stream reset |
+| `watch.status` through Muse | Answered: name, interval, until, next check |
+| Typed turns | Completed without interruption |
+| Camera capture | 640×480 JPEG in 0.90 s (0.82 s with the 4 KB read budget) |
+
+The one-time stack line did not appear in this window; the worker ran two
+captures and saves on its 4 KiB stack without a fault. The one-hour run, the
+stack line, scene change → verdict and reboot recovery remain open.
+
+### Checks in this follow-up
+
+From `esp32/`, with `CJSON_SOURCE_DIR` pointing to the matching cached
+`espressif/cjson` 1.7.19~2 `cJSON/` directory:
+
+~~~sh
+python3 -m unittest tests.test_home_eyes tests.test_gadget_events tests.test_camera
+~~~
+
+Result: 14 tests passed, zero skips. Coverage includes production worker state
+and save/capture flow, the one-time stack log, explicit PSRAM restore/event
+allocations, event delivery with Home Eyes on and off, repeated thumbnail
+captures and allocation/decoder failure cleanup, and camera read reconstruction
+across packet boundaries with both read budgets. Target compilation of all six
+objects in the table passed with warnings treated as errors. Reports and target
+objects are in `/tmp/home-eyes-ram/{before-exact,after-exact}/`.
+
+The firmware build used the helper's equivalent Watcher `idf.py` arguments with
+the existing private build configuration. CMake's component manager stopped on
+the sandbox-denied `psutil` process query (`PermissionError`, `sysctl`), before
+the updated firmware could link. The build log is `/tmp/home-eyes-idf-build.log`.
+The existing baseline app is **2,297,856 bytes, 45.21% free in a 4 MiB slot**;
+the user's hardware build reported 45% free. The fixed app's linked size is
+unverified. Run `tools/muse/board.sh build watcher` in the normal IDF environment
+to complete that check. Serial, flashing and device interaction were outside
+this follow-up's checks; changes remain uncommitted.
+
+## Earlier validation (2026-11-04)
+
+The remaining sections record the initial implementation's validation.
+
 Validation date: 2026-11-04. Revision: base b227353 plus the uncommitted Home Eyes
 working tree on project/home-eyes. Hardware units exercised: 0; board revision
 unavailable. Board target: SenseCAP Watcher, ESP32-S3, existing board profile.

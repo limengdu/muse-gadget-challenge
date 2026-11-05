@@ -110,14 +110,18 @@ class GadgetEvents(unittest.TestCase):
                 if line.startswith("@event.request "): json.loads(line[len("@event.request "):])
 
     def test_psram_allocation_and_no_internal_fallback_when_present(self):
-        for present in (0, 1):
-            with self.subTest(psram=present), tempfile.TemporaryDirectory() as tmp:
+        for home_eyes, present in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            with self.subTest(home_eyes=home_eyes, psram=present), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp)
                 write_rtos(out)
                 (out / "sdkconfig.h").write_text("#define CONFIG_SPIRAM 1\n")
                 (out / "esp_psram.h").write_text("#include <stdbool.h>\nbool esp_psram_is_initialized(void);\n")
+                (out / "esp_attr.h").write_text("#define EXT_RAM_BSS_ATTR\n")
+                (out / "freertos/idf_additions.h").write_text(
+                    '#include "freertos/task.h"\n'
+                    'BaseType_t xTaskCreateWithCaps(TaskFunction_t,const char *,unsigned,void *,unsigned,TaskHandle_t *,unsigned);\n')
                 binary = compile_host(out, [ROOT / "tests/gadget_events_harness.c"], json=True,
-                    flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"', "-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}"])
+                    flags=['-DREPLY_FIXTURE_PATH="'+str(ROOT / "tests/gadget_reply_fixture.json")+'"', "-DLINK_FAKE_CUSTOM_CALLOC=1", f"-DTEST_PSRAM_AVAILABLE={present}", f"-DCONFIG_MUSE_HOME_EYES={home_eyes}"])
                 result = run_host(binary)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

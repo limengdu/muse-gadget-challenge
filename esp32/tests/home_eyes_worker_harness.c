@@ -15,6 +15,7 @@
  */
 
 #include <assert.h>
+#include <stdarg.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 static jmp_buf idle;
 static int64_t current_ms;
 static unsigned captures, posts, tones;
+static unsigned stack_logs;
 static bool ready = true, accept = true, store_ok = true, camera_ok = true;
 static uint32_t acknowledgement;
 static uint8_t image[HOME_EYES_PIXELS];
@@ -35,7 +37,14 @@ int xSemaphoreTake(SemaphoreHandle_t m, int ticks) { (void)m; (void)ticks; retur
 int xSemaphoreGive(SemaphoreHandle_t m) { (void)m; return pdTRUE; }
 void vSemaphoreDelete(SemaphoreHandle_t m) { (void)m; }
 BaseType_t xTaskCreate(TaskFunction_t f, const char *n, unsigned bytes, void *a, unsigned p, TaskHandle_t *h)
-{ (void)f; (void)n; (void)bytes; (void)a; (void)p; *h = (void *)1; return pdPASS; }
+{ (void)f; (void)a; (void)p; assert(!strcmp(n, "home_eyes") && bytes == 4096); *h = (void *)1; return pdPASS; }
+unsigned uxTaskGetStackHighWaterMark(TaskHandle_t h) { (void)h; return 2048; }
+void record_stack_log(const char *tag, const char *fmt, ...)
+{
+    assert(!strcmp(tag, "link.stack") && captures && stored[0]);
+    va_list args; va_start(args, fmt); assert(va_arg(args, unsigned) == 2048); va_end(args);
+    stack_logs++;
+}
 void xTaskNotifyGive(TaskHandle_t h) { (void)h; }
 uint32_t ulTaskNotifyTake(BaseType_t clear, TickType_t ticks)
 { (void)clear; assert(ticks > 0); longjmp(idle, 1); }
@@ -73,7 +82,7 @@ int main(void)
     assert(home_eyes_init()); assert(home_eyes_init());
     memset(image, 80, sizeof(image));
     cmd("watch.start", "{\"name\":\"printer\",\"question\":\"Has the print failed?\",\"interval_min\":2}");
-    pump(); assert(captures == 1 && posts == 0 && stored[0]);
+    pump(); assert(captures == 1 && posts == 0 && stored[0] && stack_logs == 1);
     current_ms = 119999; pump(); assert(captures == 1);
     for (int i = 0; i < HOME_EYES_PIXELS; i++) image[i] = i % 32 < 16 ? 180 : 80;
     current_ms = 120000; accept = false; pump();
@@ -97,6 +106,7 @@ int main(void)
     assert(s_state.next_ms > current_ms);
     store_ok = false; cmd("watch.stop", NULL); pump(); assert(s_saved != s_revision);
     store_ok = true; current_ms += 5000; pump(); assert(s_saved == s_revision);
+    assert(stack_logs == 1);
     puts("Home Eyes worker: OK");
     return 0;
 }

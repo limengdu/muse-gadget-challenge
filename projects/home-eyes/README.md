@@ -122,6 +122,15 @@ the changed frame becomes the reference and a new interval begins.
 Unacknowledged alerts pause checks. Camera failures retry at the next interval
 and appear in watch.status. The worker waits for deadlines or state changes.
 
+State copies, comparison thumbnails, card data and event-sender memory use the
+Watcher's PSRAM. The worker retains a 4 KiB internal stack for NVS writes and
+logs its minimum free stack once after the first successful capture and save.
+Camera reads use 512-byte DMA chunks; capture and decoder buffers are released
+after each check. The connected-device target is at least 22 KiB free DMA RAM,
+including two-minute checks, above Link's 16 KiB send margin. The measured
+static/stack saving predicts about 24.5 KiB between checks; sustained device
+verification is pending in the [validation record](VERIFICATION.md#ram-margin-follow-up-2026-11-05).
+
 Configuration, cards and pending acknowledgements persist in NVS. Pictures and
 thumbnails stay in RAM. Reboot establishes a new reference and reissues a pending
 verdict request. Valid UTC restores saved deadlines and message age; without
@@ -145,7 +154,7 @@ Visual monitoring is an attention aid; a photo alone cannot establish safety.
 From esp32/:
 
 ~~~sh
-python3 -m unittest discover -s tests -p 'test_home_eyes.py'
+python3 -m unittest tests.test_home_eyes tests.test_gadget_events
 python3 -m unittest discover -s tests -p 'test_*.py'
 tools/muse/board.sh build watcher
 ~~~
@@ -153,6 +162,8 @@ tools/muse/board.sh build watcher
 Host tests cover diff thresholds, exposure/noise, scheduling, expiry,
 verdict/alert/acknowledgement, messages/reminders, validation, persistence,
 event retries and full registration size with the feature on/off.
+Memory checks cover PSRAM event allocation, capture-buffer release on failure
+and repeated captures, bounded camera reads, and the one-time stack log.
 The [simulator](../../esp32/simulator/README.md) includes round 412×412 watching,
 message, verdict, alert and dismiss-to-face scenarios.
 
@@ -160,5 +171,9 @@ Device verification covers fresh build size, paired remote captures/events,
 live preview with timed checks, long-text scrolling, wheel acknowledgements,
 chimes and alarm stop, reboot recovery, sleeping Wi-Fi reachability and battery
 rest between captures. Build, simulator and hardware results are separate.
+Pairing, remote camera.capture, a home.say acknowledgement event and watch.start
+worked on one Watcher before the RAM fix. A later DMA shortage stalled replies
+and tunnel keepalives; the fix's DMA minimum and complete watch/verdict cycle
+remain device checks.
 
 Detailed build, host-test and remaining device checks: [validation record](VERIFICATION.md).

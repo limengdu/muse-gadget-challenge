@@ -33,6 +33,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#if CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM
+#include "esp_attr.h"
+#include "freertos/idf_additions.h"
+#endif
 #include "noise_control.h"
 
 #define SOURCE_MAX 48
@@ -63,7 +67,11 @@ static atomic_bool s_ready, s_debug;
 static event_t *s_queue[GADGET_EVENTS_PENDING], *s_history[GADGET_EVENTS_HISTORY];
 static unsigned s_head, s_count, s_history_head, s_history_count;
 static uint64_t s_last_seq, s_dropped;
+#if CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM
+static EXT_RAM_BSS_ATTR char s_reply[GADGET_EVENTS_REPLY_BYTES];
+#else
 static char s_reply[GADGET_EVENTS_REPLY_BYTES];
+#endif
 
 // Immutable events are shared by the history, pending queue and sender.
 // 不可变事件由历史记录、待发队列及发送任务共同持有。
@@ -109,7 +117,12 @@ static event_t *make_event(const char *source, const char *summary, const cJSON 
     if ((data && !json) || (json && strlen(json) > DATA_MAX)) { cJSON_free(json); return NULL; }
     size_t ns = strlen(source) + 1, nt = strlen(summary) + 1, nd = json ? strlen(json) + 1 : 0;
     size_t message_cap = ns + nt + nd + 12;
-    event_t *event = calloc(1, sizeof(*event) + ns + nt + nd + message_cap);
+    size_t bytes = sizeof(event_t) + ns + nt + nd + message_cap;
+#if CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM
+    event_t *event = heap_caps_calloc(1, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+    event_t *event = calloc(1, bytes);
+#endif
     if (!event) { cJSON_free(json); return NULL; }
     event->source = event->storage;
     event->summary = event->source + ns;
@@ -779,6 +792,9 @@ static void event_task(void *arg) {
 
 bool gadget_events_init(void) {
     if (atomic_load(&s_ready)) return true;
+#if CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM
+    if (!esp_psram_is_initialized()) return false;
+#endif
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
     if (!s_rx_lock) s_rx_lock = xSemaphoreCreateMutex();
     if (!s_lock || !s_rx_lock) return false;
@@ -791,7 +807,14 @@ bool gadget_events_init(void) {
     if (!s_rx) s_rx = heap_caps_calloc(2, sizeof(*s_rx), caps);
     if (!s_stream) s_stream = heap_caps_calloc(1, sizeof(*s_stream), caps);
     if (!s_rx || !s_stream) return false;
+#if CONFIG_MUSE_HOME_EYES && CONFIG_SPIRAM
+    // This sender keeps its stack in PSRAM and submits requests through Link's queue.
+    // 发送任务在 PSRAM 中使用栈，通过 Link 队列提交请求。
+    if (xTaskCreateWithCaps(event_task, "gadget_events", 6144, NULL, 3, &s_task,
+                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) return false;
+#else
     if (xTaskCreate(event_task, "gadget_events", 6144, NULL, 3, &s_task) != pdPASS) return false;
+#endif
     atomic_store(&s_ready, true);
     return true;
 }

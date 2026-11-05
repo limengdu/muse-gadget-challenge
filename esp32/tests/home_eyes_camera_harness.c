@@ -17,8 +17,24 @@
 #include <assert.h>
 #include <stdio.h>
 #include "../components/muse/boards/watcher_camera.c"
+#undef free
 
 static unsigned captured, released, scale;
+static unsigned allocations, buffers;
+static unsigned fail_allocation;
+void *heap_caps_malloc(size_t n, int caps)
+{
+    assert(caps == (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (++allocations == fail_allocation) return NULL;
+    void *p = malloc(n); assert(p); buffers++; return p;
+}
+void *heap_caps_calloc(size_t n, size_t size, int caps)
+{
+    void *p = heap_caps_malloc(n * size, caps);
+    if (p) memset(p, 0, n * size);
+    return p;
+}
+void release_buffer(void *p) { if (p) { assert(buffers); buffers--; free(p); } }
 static int prepare_error, decode_error, capture_error;
 static unsigned frame_width = 416;
 static const uint8_t jpeg[] = {0xff, 0xd8, 0xff, 0xd9};
@@ -85,5 +101,17 @@ int main(void)
     frame_width = 416; capture_error = ESP_ERR_TIMEOUT;
     assert(!watcher_camera_thumbnail(pixels, 32, &error)); assert(!atomic_load(&s_busy));
     assert(!watcher_camera_thumbnail(pixels, 33, &error));
+    assert(buffers == 0 && captured == released);
+    capture_error = 0;
+    for (unsigned i = 1; i <= 2; i++) {
+        allocations = 0; fail_allocation = i;
+        assert(!watcher_camera_thumbnail(pixels, 32, &error));
+        assert(buffers == 0 && captured == released && !atomic_load(&s_busy));
+    }
+    fail_allocation = 0;
+    for (unsigned i = 0; i < 60; i++) {
+        assert(watcher_camera_thumbnail(pixels, 32, &error));
+        assert(buffers == 0 && captured == released);
+    }
     puts("Home Eyes camera adapter: OK"); return 0;
 }

@@ -108,6 +108,13 @@ watch.verdict。等待判断期间暂停检查，判断完成后以变化图更�
 警报未确认时暂停检查。相机失败则等下一个间隔重试，并在 watch.status 中记录。
 后台任务等到期限或状态变化时再工作。
 
+状态副本、比较小图、卡片数据及事件发送任务使用 Watcher 的 PSRAM。
+保存设置的后台任务保留 4 KiB 内部栈，首次成功拍照并保存后打印一次栈的最小剩余量。
+相机每段使用 512 字节 DMA 缓冲，每次检查后释放拍照和解码缓冲。
+目标是在保持连接、每两分钟检查时，空闲 DMA 内存持续达到 22 KiB，
+高于 Link 的 16 KiB 发送门槛。按静态数据和栈的节省量估算，检查间空闲约 24.5 KiB；
+持续运行的实机验证待完成，详见[验证报告](VERIFICATION.md#ram-margin-follow-up-2026-11-05)。
+
 配置、卡片和待确认状态保存在 NVS 中。照片、小图只在内存中。
 重启后重新建立基准，待处理的判断会再次请求。
 UTC 有效时恢复保存的检查期限和留言等待时间；UTC 无效时从新基准继续，
@@ -128,13 +135,15 @@ Home Eyes 不把照片写入闪存或 SD 卡，比较小图仅在内存中；
 在 esp32/ 中执行：
 
 ~~~sh
-python3 -m unittest discover -s tests -p 'test_home_eyes.py'
+python3 -m unittest tests.test_home_eyes tests.test_gadget_events
 python3 -m unittest discover -s tests -p 'test_*.py'
 tools/muse/board.sh build watcher
 ~~~
 
 主机测试覆盖噪声与曝光、阈值、间隔与到期、判断与警报确认、留言提醒、校验、
 重启保存、事件重试，以及功能开关两种状态下的完整命令清单大小。
+内存检查覆盖事件使用 PSRAM、拍照失败与重复拍照后的缓冲释放、相机分段读取上限，
+以及首次拍照并保存后的单次栈日志。
 [模拟器](../../esp32/simulator/README.md)包含 412×412 圆屏的看守徽标、留言、
 判断、警报和确认后返回表情场景。
 
@@ -142,5 +151,8 @@ tools/muse/board.sh build watcher
 实时预览与定时检查、长文字滚动、滚轮确认、提示音和警报停止、
 重启恢复、休眠时 Wi-Fi 可达性及两次拍照间的电池休眠。
 编译、模拟器和实机结果分别记录。
+修复前已有一台 Watcher 实测通过配对、远程 camera.capture、home.say 滚轮确认后发送事件，
+以及 watch.start；随后 DMA 内存不足使回复和连接保活停滞。
+本次修复后的 DMA 最低值及完整看守判断流程仍待实机验证。
 
 构建、完整测试和待实机检查的详细记录见[验证报告](VERIFICATION.md)。

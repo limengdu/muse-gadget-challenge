@@ -51,6 +51,12 @@ static const char *TAG = "camera_sscma";
 #define SAMPLE_MS 8000           /* the SAMPLE event, with the image */
 #define POLL_MS 10
 #define RX_MAX (512 * 1024)      /* a reply with a 640x480 JPEG in base64 fits well under this */
+#if CONFIG_MUSE_HOME_EYES
+#define READ_BYTES 512
+#else
+#define READ_BYTES SSCMA_MAX_READ
+#endif
+#define READ_BUFFER_BYTES ((READ_BYTES + 3) & ~3)
 
 static camera_sscma_config_t s_cfg;
 static spi_device_handle_t s_dev;
@@ -105,7 +111,7 @@ static esp_err_t receive(size_t *got)
         len = 0;
     }
     while (*got < len) {
-        uint16_t part = len - *got < SSCMA_MAX_READ ? len - *got : SSCMA_MAX_READ;
+        uint16_t part = len - *got < READ_BYTES ? len - *got : READ_BYTES;
         ESP_RETURN_ON_ERROR(send_packet(SSCMA_CMD_READ, NULL, part), TAG, "read");
         ESP_RETURN_ON_ERROR(transfer(NULL, s_rx, part), TAG, "read data");
         if (!sscma_rx_feed(&s_replies, s_rx, part)) {
@@ -177,7 +183,7 @@ static esp_err_t sscma_init(void)
         .miso_io_num = s_cfg.miso,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = SSCMA_MAX_READ + 1,
+        .max_transfer_sz = READ_BUFFER_BYTES,
     };
     esp_err_t err = spi_bus_initialize(s_cfg.host, &bus, SPI_DMA_CH_AUTO);
     ESP_RETURN_ON_FALSE(err == ESP_OK || err == ESP_ERR_INVALID_STATE, err, TAG, "spi bus");
@@ -230,7 +236,7 @@ static esp_err_t power_up(int resolution)
 #endif
     /* Internal DMA RAM is scarce, so these are only held while it's on. */
     s_tx = heap_caps_malloc(SSCMA_PACKET, MALLOC_CAP_DMA);
-    s_rx = heap_caps_malloc(SSCMA_MAX_READ + 1, MALLOC_CAP_DMA);
+    s_rx = heap_caps_malloc(READ_BUFFER_BYTES, MALLOC_CAP_DMA);
     esp_err_t err = s_tx && s_rx ? s_cfg.power(true) : ESP_ERR_NO_MEM;
     if (err == ESP_OK && s_cfg.reset) {
         s_cfg.reset(true);

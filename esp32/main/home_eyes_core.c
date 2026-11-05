@@ -20,6 +20,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 
 static cJSON *error(const char *message)
 {
@@ -284,7 +287,11 @@ bool home_eyes_restore(home_eyes_state_t *s, const char *json, int64_t now_ms, i
         cJSON_Delete(r);
         return false;
     }
+#ifdef ESP_PLATFORM
+    home_eyes_state_t *restored = heap_caps_calloc(1, sizeof(*restored), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
     home_eyes_state_t *restored = calloc(1, sizeof(*restored));
+#endif
     if (!restored) {
         cJSON_Delete(r);
         return false;

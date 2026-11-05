@@ -38,11 +38,14 @@
 static const char *TAG = "link.home.eyes";
 static EXT_RAM_BSS_ATTR home_eyes_state_t s_state;
 static EXT_RAM_BSS_ATTR home_eyes_state_t s_snapshot;
+static EXT_RAM_BSS_ATTR uint8_t s_thumbnail[HOME_EYES_PIXELS];
 static SemaphoreHandle_t s_mutex;
 static TaskHandle_t s_task;
 static uint32_t s_revision, s_saved;
 static bool s_chime;
-static char s_error[80];
+static EXT_RAM_BSS_ATTR char s_error[80];
+
+#define HOME_EYES_STACK_BYTES 4096
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 static int64_t epoch(void) { return gadget_clock_valid() ? gadget_clock_epoch() : 0; }
@@ -124,6 +127,8 @@ static void worker(void *arg)
     (void)arg;
     while (!muse_home_eyes_is_ready()) ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
     int64_t retry_ms = 0;
+    bool captured = false;
+    static bool stack_logged;
     for (;;) {
         int64_t now = now_ms(), utc = epoch();
         xSemaphoreTake(s_mutex, portMAX_DELAY);
@@ -157,6 +162,11 @@ static void worker(void *arg)
             if (ok) s_saved = revision;
             else snprintf(s_error, sizeof(s_error), "state could not be saved");
             xSemaphoreGive(s_mutex);
+            if (ok && captured && !stack_logged) {
+                ESP_LOGI("link.stack", "home_eyes stack high water mark: %u bytes free",
+                         (unsigned)uxTaskGetStackHighWaterMark(NULL) * (unsigned)sizeof(StackType_t));
+                stack_logged = true;
+            }
         }
         if (snapshot->events && now >= retry_ms) {
             unsigned delivered = 0;
@@ -173,12 +183,12 @@ static void worker(void *arg)
             retry_ms = now + 5000;
         }
         if (capture) {
-            uint8_t thumbnail[HOME_EYES_PIXELS];
             const char *error = NULL;
-            bool ok = watcher_camera_thumbnail(thumbnail, HOME_EYES_SIDE, &error);
+            bool ok = watcher_camera_thumbnail(s_thumbnail, HOME_EYES_SIDE, &error);
+            if (ok) captured = true;
             xSemaphoreTake(s_mutex, portMAX_DELAY);
             if (revision == s_revision && home_eyes_due(&s_state, now_ms())) {
-                if (ok) { home_eyes_frame(&s_state, thumbnail, now_ms()); s_error[0] = 0; }
+                if (ok) { home_eyes_frame(&s_state, s_thumbnail, now_ms()); s_error[0] = 0; }
                 else {
                     s_state.next_ms = now_ms() + s_state.interval_min * 60000LL;
                     snprintf(s_error, sizeof(s_error), "%s", error ? error : "camera check failed");
@@ -223,7 +233,7 @@ bool home_eyes_init(void)
     free(json);
     s_revision = 1;
     muse_home_eyes_bind(notify);
-    if (xTaskCreate(worker, "home_eyes", 6144, NULL, 3, &s_task) != pdPASS) {
+    if (xTaskCreate(worker, "home_eyes", HOME_EYES_STACK_BYTES, NULL, 3, &s_task) != pdPASS) {
         muse_home_eyes_bind(NULL);
         vSemaphoreDelete(s_mutex); s_mutex = NULL; return false;
     }
