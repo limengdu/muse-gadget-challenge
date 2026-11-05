@@ -12,7 +12,7 @@
     "excerpt": "A Muse-controlled study-door sign for families and makers. Show your availability on the XIAO Touch Display and receive visitors' tap replies or voice notes in your Muse chat.",
     "scene": "2",
     "license": "Apache-2.0",
-    "author": "",
+    "author": "limengdu",
     "allow_clone": 1,
     "allow_commerce": 0,
     "activity_id": null
@@ -269,8 +269,8 @@
   },
   "sync": {
     "local_revision": 4,
-    "last_pushed_revision": 3,
-    "last_pushed_at": "2026-11-05T06:02:01Z",
-    "last_pushed_hash": "sha256:c437c16b91075ac905ba5392fb5cda10791555d3f40555fe1650679789735cfa"
+    "last_pushed_revision": 4,
+    "last_pushed_at": "2026-11-05T06:38:03Z",
+    "last_pushed_hash": "sha256:f4a0ddac3d05dc21e00326663e5a7ddf13736596d27c74e9e1d72bbf8c2b1fc1"
   }
 }
