@@ -74,8 +74,8 @@
           "device_id": "100017057",
           "device_type": "62",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-kid-board-7cd1510.bin",
+          "firmware_name": "muse-gadget-kid-board-7cd1510.bin",
           "firmware_size": "1642496",
           "flash_address": "0x90000",
           "muse_gadget": true,
@@ -218,9 +218,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:20Z",
-    "last_pushed_hash": "ca6dd6d7aa4edced7ba0d45ddb29d61e4d9cbaab28b1fcfb6968c69d79585ae8"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:01:56Z",
+    "last_pushed_hash": "503ee002407d0a841413a511c0611990f258af0e4d3e47df2d22106b77bc7b4a"
   }
 }
