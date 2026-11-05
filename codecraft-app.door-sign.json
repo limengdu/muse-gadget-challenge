@@ -104,8 +104,8 @@
           "device_id": "100069905",
           "device_type": "57",
           "flash_mode": "bin",
-          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget.bin",
-          "firmware_name": "muse-gadget.bin",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-door-sign-0a1381a.bin",
+          "firmware_name": "muse-gadget-door-sign-0a1381a.bin",
           "firmware_size": "3018752",
           "flash_address": "0x0",
           "muse_gadget": true,
@@ -268,9 +268,9 @@
     ]
   },
   "sync": {
-    "local_revision": 2,
-    "last_pushed_revision": 2,
-    "last_pushed_at": "2026-11-05T05:50:37Z",
-    "last_pushed_hash": "1aeb94b64f947e396e1dc1986c51da7a79989439cbdbf36df941a0cc1c48b298"
+    "local_revision": 3,
+    "last_pushed_revision": 3,
+    "last_pushed_at": "2026-11-05T06:02:01Z",
+    "last_pushed_hash": "0ff615bc255f68ae11277e275a769873ab2174f88e7a5e0c7d9dc39593b04b06"
   }
 }
