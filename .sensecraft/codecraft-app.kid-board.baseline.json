@@ -1,0 +1,204 @@
+{
+  "deployment": {
+    "blocks": [
+      {
+        "content": "Parents can use Muse chat to change activities, pickup plans, rewards and encouragement. The child follows short English labels and friendly icons on an 800×480 six-colour e-paper screen. This project targets the reTerminal E1002.",
+        "id": "p1",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Explore the <a href=\"https://github.com/limengdu/muse-gadget-challenge/tree/project/kid-board/projects/kid-board\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">public project source</a>, the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/kid-board/projects/kid-board/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">Muse skill</a> and the <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/kid-board/projects/kid-board/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">validation record</a>. Project files use Apache-2.0.",
+        "id": "p2",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Gather what you need",
+        "expanded": true,
+        "id": "s1",
+        "indent": 0,
+        "title": "Gather what you need",
+        "type": "step"
+      },
+      {
+        "content": "Have one reTerminal E1002, a USB data cable, a desktop computer with Chrome or Edge, Wi-Fi with internet access, and the Muse app signed in to your own Muse account. Obtain your Muse SDK token from <a href=\"https://gadgets.muse.ai/\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">gadgets.muse.ai</a> using that account. Keep it available for the flashing page's personal-token prompt.",
+        "id": "p3",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Flash Kid Board firmware",
+        "expanded": true,
+        "id": "s2",
+        "indent": 0,
+        "title": "Flash Kid Board firmware",
+        "type": "step"
+      },
+      {
+        "content": "Connect the E1002 to your computer with the USB data cable. Use the firmware tool directly below to flash Kid Board and grant access to the board's USB port. Follow the page's prompts: after the write, press the device's reset button when instructed and enter your own Muse SDK token when asked. The page saves that token on your device. Continue to pairing after flashing and token setup finish.",
+        "id": "p4",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "config": {
+          "device_id": "100017057",
+          "device_type": "62",
+          "firmware_name": "muse-gadget-kid-board-7cd1510.bin",
+          "firmware_size": "1642496",
+          "firmware_url": "https://sensecraft-statics.seeed.cc/refer/firmware/424326273238784/muse-gadget-kid-board-7cd1510.bin",
+          "flash_address": "0x90000",
+          "flash_mode": "bin",
+          "full_flash": false,
+          "muse_gadget": true
+        },
+        "id": "flash_kid_board",
+        "type": "flash-firmware"
+      },
+      {
+        "content": "Pair the board in Muse",
+        "expanded": true,
+        "id": "s3",
+        "indent": 0,
+        "title": "Pair the board in Muse",
+        "type": "step"
+      },
+      {
+        "content": "In the Muse app, add the nearby <strong>MuseGadget-Disp-…</strong>, enter your Wi-Fi details and press the E1002's <strong>Green</strong> button to confirm pairing. Continue once Muse connects to this gadget. If you own several gadgets, identify this E1002 in your chat before asking Muse to change its board.",
+        "id": "p5",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Install the Muse skill once",
+        "expanded": true,
+        "id": "s4",
+        "indent": 0,
+        "title": "Install the Muse skill once",
+        "type": "step"
+      },
+      {
+        "content": "Open <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/kid-board/projects/kid-board/SKILL.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">SKILL.md</a>, copy its full text into your Muse chat and ask Muse to remember it for your E1002 Kid Board. Install it once; send the full skill again after it changes. This teaches Muse how to edit the plan, handle completion notices and follow your family's star rules.",
+        "id": "p6",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Tell Muse the child's display name, local time zone, caregivers allowed to give stars, daily star cap and agreed reward. For example: “Set up Mia's Kid Board. Grandma and I may give up to three stars a day; five stars earns a park picnic.” Muse uses these details to set the clock and remember the agreement. Ask it to read the board's current state to check the connection and time settings.",
+        "id": "p7",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Plan a day and confirm a step",
+        "expanded": true,
+        "id": "s5",
+        "indent": 0,
+        "title": "Plan a day and confirm a step",
+        "type": "step"
+      },
+      {
+        "content": "Say to Muse: “Plan Mia's day: brush teeth in 5 minutes, dress in 10, breakfast in 15; 2 stars, goal 5, reward park.” The board shows the dated timeline, two stars and the reward. This request and its screen layout were checked on one E1002.",
+        "id": "p8",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "After pairing is complete, a short press of <strong>Green</strong> confirms the highlighted step. The checked device beeped, marked the step and sent a completion notice that Muse reported to the owner. The highlight selects the latest due unfinished step, or the next step today when none is due. Allow the e-paper screen time to redraw, and leave at least two seconds between accepted presses.",
+        "id": "p9",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Other supported requests include:",
+        "id": "p10",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "“Swimming is cancelled today; piano at 4 instead, Grandpa picks her up.” Muse reads the current plan and sends a complete replacement that retains the other activities.",
+        "id": "b1",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "“Mia finished her homework, give her a star.” Muse checks your caregiver agreement and daily cap, reads the current total and updates the star chart.",
+        "id": "b2",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "“What did Mia confirm today? How many stars does she have?” Muse reads the board's current plan and star progress.",
+        "id": "b3",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "“Undo that completion.” Muse identifies the intended step and corrects its completion remotely.",
+        "id": "b4",
+        "indent": 0,
+        "type": "bullet"
+      },
+      {
+        "content": "These additional requests are documented in the skill and implemented by the commands; their full end-to-end device checks remain pending. Green records a step confirmation. Stars are awarded separately through an authorized caregiver's request.",
+        "id": "p11",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Check operating limits and validation",
+        "expanded": true,
+        "id": "s6",
+        "indent": 0,
+        "title": "Check operating limits and validation",
+        "type": "step"
+      },
+      {
+        "content": "Keep the plan to ten items and screen labels short in English/ASCII with supported punctuation. The board stores one dated plan: sending tomorrow's plan replaces the visible list immediately, and Green can confirm it on its own date. The last plan repeats on following days until Muse replaces it. Stars carry across days; the goal supports 1–20 stars, with totals up to 999.",
+        "id": "p12",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The measured full colour refresh took about 26 seconds; allow roughly 30 seconds. Firmware combines nearby changes and spaces redraw starts at least 60 seconds apart, so the picture may lag behind saved state. Ask Muse for current facts while it refreshes. On one E1002, the latest recorded idle check showed one redraw on boot restore and none during the next 4.5 minutes.",
+        "id": "p13",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "Completion notices depend on connectivity and power. Recent event history holds up to 32 notices in temporary memory; weekly reviews need Muse's saved daily records. A completion notice records a button press. Muse manages caregiver permissions, daily caps and reward agreements.",
+        "id": "p14",
+        "indent": 0,
+        "type": "paragraph"
+      },
+      {
+        "content": "The 2026-11-05 <a href=\"https://github.com/limengdu/muse-gadget-challenge/blob/project/kid-board/projects/kid-board/VALIDATION.md\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: #409eff; text-decoration: none; border-bottom: 1px solid #409eff;\">hardware record</a> covers one E1002 paired over Wi-Fi, plan/star/reward display, Green confirmation and the idle-refresh observation. Next-item timed redraw, the earned-reward page, midnight rollover and plan restoration after a power cycle still need device checks. Board revision and an exact source revision for that latest device run were not recorded. This release image also awaits a Hub-page flash and setup test.",
+        "id": "p15",
+        "indent": 0,
+        "type": "paragraph"
+      }
+    ]
+  },
+  "images": [
+    "https://sensecraft-statics.seeed.cc/refer/pic/1793857815380_ZL3GFv_hub-cover.jpg"
+  ],
+  "info": {
+    "allow_clone": 1,
+    "allow_commerce": 0,
+    "app_name": "Kid Board — a child's day",
+    "author": "limengdu",
+    "excerpt": "Plan a child's day with Muse on reTerminal E1002: show routines and a family star chart, then receive completion notices when the child presses Green. For families and makers with a Muse account.",
+    "license": null,
+    "scene": "6"
+  },
+  "materials": [
+    {
+      "buy_url": "https://www.seeedstudio.com/reTerminal-E1002-p-6533.html?___store=retailer",
+      "id": "100017057",
+      "name": "reTerminal E1002",
+      "note": "",
+      "quantity": "1"
+    }
+  ]
+}

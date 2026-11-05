@@ -62,7 +62,7 @@
         "type": "step"
       },
       {
-        "content": "Connect the E1002 to your computer with the USB data cable. Use the firmware tool directly below to flash Kid Board and grant access to the board's USB port. Follow the page's prompts: after the write, press the device's reset button when instructed and enter your own Muse SDK token when asked. The page saves that token on your device. Continue to pairing after flashing and token setup finish.",
+        "content": "Connect the E1002 to your computer with a USB data cable and use the firmware tool below to install Kid Board; allow the browser to use the board's USB port. When the write finishes, restart the E1002 (press its reset button, or switch it off and on) so it leaves flashing mode. Then enter your own Muse SDK token when the page asks; the device stores it and restarts. Continue to pairing after the token step.",
         "id": "p4",
         "indent": 0,
         "type": "paragraph"
@@ -218,9 +218,9 @@
     ]
   },
   "sync": {
-    "local_revision": 3,
+    "local_revision": 4,
     "last_pushed_revision": 3,
     "last_pushed_at": "2026-11-05T06:01:56Z",
-    "last_pushed_hash": "503ee002407d0a841413a511c0611990f258af0e4d3e47df2d22106b77bc7b4a"
+    "last_pushed_hash": "sha256:2438fb1a3f7e7dd327a03f06b8d31b264fe5fdcd30a7a8f01e7566d87d9c91de"
   }
 }
