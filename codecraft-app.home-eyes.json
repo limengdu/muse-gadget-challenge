@@ -92,7 +92,7 @@
         "type": "step"
       },
       {
-        "content": "Connect the Watcher to the computer with the USB data cable. Use the firmware tool below and select the Watcher's ESP32-S3 / XIAO console port. This private draft is awaiting its firmware attachment; flashing becomes available when the release is attached.",
+        "content": "Connect the Watcher to your computer with a USB data cable and use the firmware tool below; select the Watcher's ESP32-S3 console port.",
         "id": "home_eyes_paragraph_4",
         "indent": 0,
         "type": "paragraph"
@@ -249,9 +249,9 @@
     ]
   },
   "sync": {
-    "local_revision": 3,
+    "local_revision": 4,
     "last_pushed_revision": 3,
     "last_pushed_at": "2026-11-05T06:02:00Z",
-    "last_pushed_hash": "9e22005e2b9cc112655d33d2fd2e9813dd093ddee45b7612ff00c9f0b75e9450"
+    "last_pushed_hash": "sha256:1d80d3bd8cdc0b62fa061bd5476dc3c626f47509040fc24332376f6e706bdebd"
   }
 }
